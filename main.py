@@ -18,7 +18,7 @@ import subprocess
 import os
 # path to the game folder
 def main():
-   game_path = Path("game")   
+   game_path = Path("game/game")   
    if game_path.exists == False:
      print("Game folder not found exists.")
      game_path.mkdir(parents=True, exist_ok=True      )   
