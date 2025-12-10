@@ -1,2 +1,7 @@
-/game
-screenshots/
+game/*
+!game/.getkeep
+screenshots/*
+screenshots/.getkeep
+game_evens.jsonl
+ga_state.jsonl
+env
