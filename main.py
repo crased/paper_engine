@@ -12,11 +12,16 @@
 #after screengrab time == 500.
 #return screengrab to footage folder. 
 from screenshot import take_screenshot, create_screenshots_directory
+from pathlib import Path
 import game
 import subprocess
 import os
 if game os.path.exists():
-   subprocess.run([r"C:\Users\change this to user\Downloads\paper_engine-main\paper_engine-main\game.exe"])
+   folder_path = Path.home() / "Downloads" / "paper_engine-main" / "paper_engine-main" / "game"
+   subprocess.run([r"C:\path\to\your\game.exe", str(folder_path)])
+   if folder_path == empty:
+      print("game folder is empty")
+   if folder_path != empty:
    while subprocess.run == True:
          take_screenshot(create_screenshots_directory())
          
