@@ -29,7 +29,7 @@ def main():
        print("No executable files found in the game folder.")
        return
   
-   exe_path = exe_files[0]  # Assuming the first .exe file is the game executable
+   exe_path = exe_files[0]  # Assuming the first .exe file is the game executables
   
    if game_path.exists():
      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
