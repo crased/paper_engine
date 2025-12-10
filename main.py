@@ -16,12 +16,158 @@ from pathlib import Path
 import game
 import subprocess
 import os
-if game os.path.exists():
-   folder_path = Path.home() / "Downloads" / "paper_engine-main" / "paper_engine-main" / "game"
-   subprocess.run([r"C:\path\to\your\game.exe", str(folder_path)])
-   if folder_path == empty:
-      print("game folder is empty")
-   if folder_path != empty:
-   while subprocess.run == True:
+# path to the game folder
+def main():
+   game_path = Path("game")   
+   if game_path.exists == False:
+     print("Game folder not found exists.")
+     game_path.mkdir(parents=True, exist_ok=True      )   
+   else:
+     subprocess.run([r"C:\path\to\your\game.exe", str(game_path)])
+     while subprocess.run == True:
          take_screenshot(create_screenshots_directory())
-         
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    main()
