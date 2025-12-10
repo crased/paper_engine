@@ -3,5 +3,6 @@ game/*
 screenshots/*
 screenshots/.getkeep
 game_evens.jsonl
-ga_state.jsonl
-env
+game_state.jsonl
+\env
+\__pycache__
