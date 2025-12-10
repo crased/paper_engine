@@ -13,23 +13,34 @@
 #return screengrab to footage folder. 
 from screenshot import take_screenshot, create_screenshots_directory
 from pathlib import Path
-import game
 import subprocess
 import os
+import time
 # path to the game folder
 def main():
-   game_path = Path("game/game")   
-   if game_path.exists == False:
-     print("Game folder not found exists.")
+   game_path = Path("game/")  # Replace with actual game folder path
+   if not game_path.exists():
+     print("Game folder not found exists. rerun script")
      game_path.mkdir(parents=True, exist_ok=True      )   
-   else:
-     subprocess.run([r"C:\path\to\your\game.exe", str(game_path)])
-     while subprocess.run == True:
+   
+   exe_files = list(game_path.glob("*.exe"))
+   
+   if not exe_files:
+       print("No executable files found in the game folder.")
+       return
+  
+   exe_path = exe_files[0]  # Assuming the first .exe file is the game executable
+  
+   if game_path.exists():
+     game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
+     #delay for game to load
+     time.sleep(15)  # Adjust delay as needed
+     
+     while game_process.poll() is None:
+         #add like a 15 sec delay on start with countdown.
          take_screenshot(create_screenshots_directory())
-
-
-
-
+         time.sleep(10)  # Delay between screenshots
+  
 
 
 

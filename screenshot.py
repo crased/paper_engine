@@ -62,16 +62,10 @@ def main():
     print("=== Screenshot Capture Program ===")
     print("Press 'q' at any time to quit\n")
     
-    # Get interval from user
-    while True:
-        try:
-            interval = float(input("How often to take screenshots (in seconds): "))
-            if interval <= 0:
-                print("Please enter a positive number.")
-                continue
-            break
-        except ValueError:
-            print("Please enter a valid number.")
+    # set default interval 
+    
+    interval = 10
+            
     
     # Create screenshots directory
     directory = create_screenshots_directory()
