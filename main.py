@@ -17,20 +17,23 @@ import subprocess
 import os
 import time
 # path to the game folder
-def main():
-   game_path = Path("game/")  # Replace with actual game folder path
+game_path = Path("game/")
+def path_finder(game_path):
+
    if not game_path.exists():
-     print("Game folder not found exists. rerun script")
-     game_path.mkdir(parents=True, exist_ok=True      )   
+     print(f"Game folder '{game_path}' not found!")
+     return None   
    
    exe_files = list(game_path.glob("*.exe"))
    
    if not exe_files:
-       print("No executable files found in the game folder.")
-       return
-  
-   exe_path = exe_files[0]  # Assuming the first .exe file is the game executables
-  
+       print("No .exe files found in game folder.")
+       return None
+   exe_path = exe_files[0]
+   return exe_path # Assuming the first .exe file is the game executables
+def main(): 
+   exe_path = path_finder(game_path)
+
    if game_path.exists():
      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
      #delay for game to load
