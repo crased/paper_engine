@@ -37,13 +37,15 @@ def main():
    if game_path.exists():
      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
      #delay for game to load
-     time.sleep(20)  # Adjust delay as needed
+     time.sleep(7)  # Adjust delay as needed
      
      while game_process.poll() is None:
          #add like a 15 sec delay on start with countdown.
          take_screenshot(create_screenshots_directory())
          time.sleep(5)  # Delay between screenshots
-         
+     # if game_process.poll() is not None:
+         # run label-studio path_to_screenshots/
+         #
 
 
 
