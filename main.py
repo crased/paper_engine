@@ -54,7 +54,8 @@ def main():
              #break
      if game_process.poll() is not None:
         print("finshed taking screenshots") 
-        link_process = subprocess.Popen(["label-studio start")
+        command = ["label-studio", "start", "--port", "8080"]
+        label_process = subprocess.Popen(command, start_new_session=True)
          # run label-studio path_to_screenshots/
          #
    
