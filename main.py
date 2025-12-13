@@ -20,7 +20,7 @@ import time
 game_path = Path("game/")
 def path_finder(game_path):
 
-   if not game_path.isfile():
+   if not game_path.exists():
      print(f"Game folder '{game_path}' not found!")
      return None   
    
@@ -34,7 +34,7 @@ def path_finder(game_path):
 def main(): 
    exe_path = path_finder(game_path)
 
-   if game_path.isfile():
+   if game_path.exists():
      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
      #delay for game to load
      time.sleep(7)  # Adjust delay as needed
