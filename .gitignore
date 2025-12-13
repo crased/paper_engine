@@ -6,4 +6,3 @@ game_evens.jsonl
 game_state.jsonl
 /env
 __pycache__/*
-api_key.py

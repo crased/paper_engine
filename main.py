@@ -43,10 +43,21 @@ def main():
          #add like a 15 sec delay on start with countdown.
          take_screenshot(create_screenshots_directory())
          time.sleep(5)  # Delay between screenshots
-     # if game_process.poll() is not None:
+         #if len(path=Path("screeenshots/").glob("*.png")) >= 150: 
+             #print("you have taken 150 screenshots")
+             ##if option1:
+              # continue
+             #print("or")
+             #print(f"terminate process")]
+             #elif False:
+             #game_process.terminate()  # Close the game after taking screenshots
+             #break
+     if game_process.poll() is not None:
+        print("finshed taking screenshots") 
+        link_process = subprocess.Popen(["label-studio start")
          # run label-studio path_to_screenshots/
          #
-
+   
 
 
 
