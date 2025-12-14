@@ -46,7 +46,7 @@ def main():
          take_screenshot(create_screenshots_directory())
      if game_process.poll() is not None:
         if sys.platform == "win32":
-          command = [sys.executable, "m", "label-studio", "start", "--port", "8080"]
+          command = [sys.executable, "-m", "label-studio", "start", "--port", "8080"]
           label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
         else:
           command = ["label-studio","start" ,"--port", "8080"]   
