@@ -54,9 +54,16 @@ def main():
              #game_process.terminate()  # Close the game after taking screenshots
              #break
      if game_process.poll() is not None:
-        print("finshed taking screenshots") 
-        command = [sys.executable, "m", "label-studio", "start", "--port", "8080"]
-        label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
+        try:
+           if sys.platform == "win32":
+             command = [sys.executable, "m", "label-studio", "start", "--port", "8080"]
+             label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
+           else:
+             command = ["label-studio", "start", "--port", "8080"]   
+             label_process = subprocess.Popen(command,start_new_session=True)
+        except FileNotFoundError:
+             print("Error: label-studio executable not found. Make sure it is installed and in your PATH.")
+             exit(1)
          # run label-studio path_to_screenshots/
          #
    
