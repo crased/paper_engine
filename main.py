@@ -56,10 +56,10 @@ def main():
      if game_process.poll() is not None:
         try:
            if sys.platform == "win32":
-             command = [sys.executable, "m", "label-studio", "start", "--port", "8080"]
+             command = [sys.executable, "m", "label-studio",init "pygaming", "start", "--port", "8080"]
              label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
            else:
-             command = ["label-studio", "start", "--port", "8080"]   
+             command = ["label-studio",init "pygaming", "start", "--port", "8080"]   #modify this so it creates a new project and imports screenshots images 
              label_process = subprocess.Popen(command,start_new_session=True)
         except FileNotFoundError:
              print("Error: label-studio executable not found. Make sure it is installed and in your PATH.")
