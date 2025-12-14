@@ -19,7 +19,7 @@ import time
 # path to the game folder
 game_path = Path("game/")
 def path_finder(game_path):
-
+#you may have to change games x permisions level to continue.
    if not game_path.exists():
      print(f"Game folder '{game_path}' not found!")
      return None   
