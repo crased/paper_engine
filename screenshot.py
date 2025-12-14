@@ -4,7 +4,8 @@ from datetime import datetime
 from PIL import ImageGrab
 from pynput import keyboard
 import threading
-
+import sys
+import subprocess
 # Global flag to control the program
 should_stop = False
 
@@ -43,16 +44,22 @@ def take_screenshot(directory):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"screenshot_{timestamp}.png"
     filepath = os.path.join(directory, filename)
-    
-    try:
-        # Capture the screen
-        screenshot = ImageGrab.grab()
-        # Save the screenshot
-        screenshot.save(filepath)
-        print(f"Screenshot saved: {filename}")
-    except Exception as e:
-        print(f"Error taking screenshot: {e}")
-
+    if sys.platform == "win32":
+       try:
+          # Capture the screen
+          screenshot = ImageGrab.grab()
+          # Save the screenshot
+          screenshot.save(filepath)
+          print(f"Screenshot saved: {filename}")
+       except Exception as e:
+          print(f"Error taking screenshot: {e}")
+    else:
+       try:
+          subprocess.run(['scrot', str(filepath)], check=True, stderr=subprocess.DEVNULL)
+          print(f"✓ Screenshot (scrot): {filename}")
+          return str(filepath)
+       except Exception as e:
+          print(f"Error taking screenshot: {e}")
 def main():
     """
     Main function that coordinates the screenshot capture process.

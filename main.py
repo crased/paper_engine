@@ -16,6 +16,7 @@ from pathlib import Path
 import subprocess
 import os
 import time
+import sys
 # path to the game folder
 game_path = Path("game/")
 def path_finder(game_path):
@@ -54,8 +55,8 @@ def main():
              #break
      if game_process.poll() is not None:
         print("finshed taking screenshots") 
-        command = ["label-studio", "start", "--port", "8080"]
-        label_process = subprocess.Popen(command, start_new_session=True)
+        command = [sys.executable, "m", "label-studio", "start", "--port", "8080"]
+        label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
          # run label-studio path_to_screenshots/
          #
    
