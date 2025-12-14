@@ -37,13 +37,13 @@ def main():
 
    if game_path.exists():
      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
-     #delay for game to load
-     time.sleep(7)  # Adjust delay as needed
+     time.sleep(10)
+       # Adjust delay as needed
      
      while game_process.poll() is None:
-         #add like a 15 sec delay on start with countdown.
+         time.sleep(5)
          take_screenshot(create_screenshots_directory())
-         time.sleep(5)  # Delay between screenshots
+           # Delay between screenshots
          #if len(path=Path("screeenshots/").glob("*.png")) >= 150: 
              #print("you have taken 150 screenshots")
              ##if option1:
