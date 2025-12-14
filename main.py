@@ -13,7 +13,7 @@
 #return screengrab to footage folder. 
 from screenshot import take_screenshot, create_screenshots_directory
 from pathlib import Path
-from label_studio import label_studio
+from label_studio_sdk import LabelStudio
 import subprocess
 import os
 import time
@@ -45,11 +45,13 @@ def main():
          time.sleep(5)
          take_screenshot(create_screenshots_directory())
      if game_process.poll() is not None:
-        #try:
-           # revert if broken
-        label_studio()
-
-   
+        if sys.platform == "win32":
+          command = [sys.executable, "m", "label-studio", "start", "--port", "8080"]
+          label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
+        else:
+          command = ["label-studio","start" ,"my project","--init","--port", "8080"]   
+          label_process = subprocess.Popen(command,start_new_session=True)
+         
 
 
 
