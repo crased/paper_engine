@@ -55,11 +55,11 @@ def take_screenshot(directory):
           print(f"Error taking screenshot: {e}")
     else:
        try:
-          subprocess.run(['grim', str(filepath)], check=True, stderr=subprocess.DEVNULL)
-          print(f"✓ Screenshot (grim): {filename}")
+          subprocess.run(['flameshot', 'gui', '-r'], check=True, stdout=open(filepath, 'wb'))
+          print(f"✓ Screenshot (flameshot): {filename}")
           return str(filepath)
        except Exception as e:
-          print(f"Error taking screenshot: {e}")
+        print(f"Error taking screenshot: {e}")
 def main():
     """
     Main function that coordinates the screenshot capture process.
