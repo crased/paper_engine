@@ -59,7 +59,7 @@ def take_screenshot(directory):
           print(f"Error taking screenshot: {e}")
     else:
        try:
-          subprocess.run(['flameshot', 'gui', '-r'], check=True, stdout=open(filepath, 'wb'))
+          subprocess.run(['flameshot', 'screen', '-r'], check=True, stdout=open(filepath, 'wb'))
           print(f"✓ Screenshot (flameshot): {filename}")
           return str(filepath)
        except Exception as e:
