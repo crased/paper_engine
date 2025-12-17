@@ -55,8 +55,8 @@ def take_screenshot(directory):
           print(f"Error taking screenshot: {e}")
     else:
        try:
-          subprocess.run(['scrot', str(filepath)], check=True, stderr=subprocess.DEVNULL)
-          print(f"✓ Screenshot (scrot): {filename}")
+          subprocess.run(['grim', str(filepath)], check=True, stderr=subprocess.DEVNULL)
+          print(f"✓ Screenshot (grim): {filename}")
           return str(filepath)
        except Exception as e:
           print(f"Error taking screenshot: {e}")
