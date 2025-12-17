@@ -44,6 +44,10 @@ def take_screenshot(directory):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"screenshot_{timestamp}.png"
     filepath = os.path.join(directory, filename)
+    env_vars = os.environ.copy()
+    env_vars["XDG_CURRENT_DESKTOP"] = "sway"
+    env_vars["QT_QPA_PLATFORM"] = "wayland"
+    
     if sys.platform == "win32":
        try:
           # Capture the screen
