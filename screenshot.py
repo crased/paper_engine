@@ -1,8 +1,6 @@
 import os
 import time
 from datetime import datetime
-from PIL import ImageGrab
-from pynput import keyboard
 import threading
 import sys
 import subprocess
@@ -15,16 +13,25 @@ def on_key_press(key):
     Sets the global flag to True when 'q' is pressed.
     """
     global should_stop
-    try:
+    if sys.platform == "win32":
+     from pynput import keyboard
+     try:
         # Check if the key pressed is 'q'
         if key.char == 'q':
             print("\n'q' pressed - stopping screenshot capture...")
             should_stop = True
             return False  # Stop the listener
-    except AttributeError:
+     except AttributeError:
         # Special keys (like ctrl, alt, etc.) don't have a char attribute
         pass
-
+    else:
+     from 
+     try:
+        if .char == "q":
+          print("\n'q' pressed - stopping screenshot capture...")  
+          should_stop = True
+          return False  # Stop the listener
+     except AttributeError:
 def create_screenshots_directory():
     """
     Creates a 'screenshots' directory if it doesn't exist.
@@ -49,6 +56,7 @@ def take_screenshot(directory):
     env_vars["QT_QPA_PLATFORM"] = "wayland"
     
     if sys.platform == "win32":
+       from Pil import imageGrab
        try:
           # Capture the screen
           screenshot = ImageGrab.grab()
