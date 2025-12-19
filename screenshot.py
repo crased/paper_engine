@@ -25,7 +25,7 @@ def on_key_press(key):
         # Special keys (like ctrl, alt, etc.) don't have a char attribute
         pass
     else:
-     from 
+     from #need to find compatible module for this
      try:
         if .char == "q":
           print("\n'q' pressed - stopping screenshot capture...")  
