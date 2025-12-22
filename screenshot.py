@@ -6,32 +6,6 @@ import sys
 import subprocess
 # Global flag to control the program
 should_stop = False
-
-def on_key_press(key):
-    """
-    Callback function that runs when a key is pressed.
-    Sets the global flag to True when 'q' is pressed.
-    """
-    global should_stop
-    if sys.platform == "win32":
-     from pynput import keyboard
-     try:
-        # Check if the key pressed is 'q'
-        if key.char == 'q':
-            print("\n'q' pressed - stopping screenshot capture...")
-            should_stop = True
-            return False  # Stop the listener
-     except AttributeError:
-        # Special keys (like ctrl, alt, etc.) don't have a char attribute
-        pass
-    else:
-     from #need to find compatible module for this
-     try:
-        if .char == "q":
-          print("\n'q' pressed - stopping screenshot capture...")  
-          should_stop = True
-          return False  # Stop the listener
-     except AttributeError:
 def create_screenshots_directory():
     """
     Creates a 'screenshots' directory if it doesn't exist.
@@ -79,7 +53,7 @@ def main():
     global should_stop
     
     print("=== Screenshot Capture Program ===")
-    print("Press 'q' at any time to quit\n")
+    print("Press 'ctrl c' at any time to end program\n")
     
     # set default interval 
     
@@ -89,12 +63,8 @@ def main():
     # Create screenshots directory
     directory = create_screenshots_directory()
     
-    # Start keyboard listener in a separate thread
-    listener = keyboard.Listener(on_press=on_key_press)
-    listener.start()
-    
     print(f"\nStarting screenshot capture every {interval} seconds...")
-    print("Press 'q' to stop\n")
+  
     
     # Main screenshot loop
     screenshot_count = 0
@@ -111,7 +81,6 @@ def main():
             elapsed += check_interval
     
     # Clean up
-    listener.stop()
     print(f"\nProgram ended. Total screenshots taken: {screenshot_count}")
 
 if __name__ == "__main__":
