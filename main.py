@@ -37,10 +37,12 @@ def main():
    exe_path = path_finder(game_path)
 
    if game_path.exists():
-     game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
+     if sys.platform == "win32":
+      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
+     else:
+      game_process = subprocess.Popen(["wine","exe_path"])
      time.sleep(10)
        # Adjust delay as needed
-     
      while game_process.poll() is None:
          time.sleep(5)
          take_screenshot(create_screenshots_directory())
@@ -51,9 +53,13 @@ def main():
         else:
           command = ["label-studio","start" ,"--port", "8080"]   
           label_process = subprocess.Popen(command,start_new_session=True)
-         
-
-
+   else:
+     game_path.mkdir(parents=True,exist_ok=True)
+     
+   
+    
+    
+ 
 
 
 
