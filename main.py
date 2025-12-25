@@ -18,6 +18,7 @@ import subprocess
 import os
 import time
 import sys
+from pynput import keyboard
 # path to the game folder
 game_path = Path("game/")
 def path_finder(game_path):
@@ -35,12 +36,14 @@ def path_finder(game_path):
    return exe_path # Assuming the first .exe file is the game executables
 def main(): 
    exe_path = path_finder(game_path)
-
-   if game_path.exists():
+   env = os.environ.copy()
+   env["LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED"] = "true"
+   print("To run .exe type,don't run exe: (Y,N)")
+   if input() == "Y":
      if sys.platform == "win32":
       game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
      else:
-      game_process = subprocess.Popen(["wine","exe_path"])
+      game_process = subprocess.Popen(["wine", exe_path])
      time.sleep(10)
        # Adjust delay as needed
      while game_process.poll() is None:
@@ -48,16 +51,24 @@ def main():
          take_screenshot(create_screenshots_directory())
      if game_process.poll() is not None:
         if sys.platform == "win32":
-          command = [sys.executable, "-m", "label-studio", "start", "--port", "8080"]
-          label_process = subprocess.Popen(command,creationflags=subprocess.CREATE_NEW_CONSOLE )
+          command = [sys.executable, "-m","label-studio", "start", "--port", "8080"]
+          label_process = subprocess.Popen(command,env=env,creationflags=subprocess.CREATE_NEW_CONSOLE )
         else:
           command = ["label-studio","start" ,"--port", "8080"]   
-          label_process = subprocess.Popen(command,start_new_session=True)
-   else:
+          label_process = subprocess.Popen(command,env=env,start_new_session=True)
+   elif input() == "N":
+     # this is kinda redundant ill probbaly change this system
+     if sys.platform == "win32":
+          command = [sys.executable, "-m","label-studio", "start", "--port", "8080"]
+          label_process = subprocess.Popen(command,env=env,creationflags=subprocess.CREATE_NEW_CONSOLE )
+     else:
+          command = ["label-studio","start" ,"--port", "8080"]   
+          label_process = subprocess.Popen(command,env=env,start_new_session=True)
+   if game_path is None:
      game_path.mkdir(parents=True,exist_ok=True)
+ #annotate data use ai to finishing annotation then setup export so data gets pumped back into complex_bot script
+ #need to setup some terminal keys like y and n   
      
-   
-    
     
  
 
