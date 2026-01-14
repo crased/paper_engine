@@ -7,3 +7,5 @@ game_state.jsonl
 /env
 __pycache__/*
 tests.py
+dataset/*
+dataset/.getkeep
