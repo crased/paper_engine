@@ -11,7 +11,7 @@
 #record time should be set in screengrab.py.
 #after screengrab time == 500.
 #return screengrab to footage folder. 
-from screenshot import take_screenshot, create_screenshots_directory
+from screencapture import take_screenshot, create_screenshots_directory
 from pathlib import Path
 import subprocess
 import os
@@ -41,7 +41,7 @@ def main():
    elif input() == "N":
      # this is kinda redundant ill probbaly change this system
      if sys.platform == "linux":#in future change env so i can just call "label-studio"
-          command = ["/usr/bin/label-studio","start" ,"--port", "8080"]   
+          command = ["label-studio","start" ,"--port", "8080"]   
           label_process = subprocess.Popen(command,env=env,start_new_session=True)
    if game_path is None:
      game_path.mkdir(parents=True,exist_ok=True)
