@@ -13,36 +13,21 @@
 #return screengrab to footage folder. 
 from screenshot import take_screenshot, create_screenshots_directory
 from pathlib import Path
-from label_studio_sdk import LabelStudio
 import subprocess
 import os
 import time
 import sys
 from pynput import keyboard
-# path to the game folder
-game_path = Path("game/")
-def path_finder(game_path):
-#you may have to change games x permisions level to continue.
-   if not game_path.exists():
-     print(f"Game folder '{game_path}' not found!")
-     return None   
-   
-   exe_files = list(game_path.glob("*.exe"))
-   
-   if not exe_files:
-       print("No .exe files found in game folder.")
-       return None
-   exe_path = exe_files[0]
-   return exe_path # Assuming the first .exe file is the game executables
+from game_exe_func import get_title, path_finder
+
 def main(): 
+   game_path = "game/"
    exe_path = path_finder(game_path)
    env = os.environ.copy()
    env["LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED"] = "true"
-   print("To run .exe type,don't run exe: (Y,N)")
+   print(f"To run {str(get_title(game_path))} Y:N")
    if input() == "Y":
-     if sys.platform == "win32":
-      game_process = subprocess.Popen([str(exe_path)])  # Replace with actual game executable
-     else:
+     if sys.platform == "linux":
       game_process = subprocess.Popen(["wine", exe_path])
      time.sleep(10)
        # Adjust delay as needed
@@ -50,19 +35,13 @@ def main():
          time.sleep(5)
          take_screenshot(create_screenshots_directory())
      if game_process.poll() is not None:
-        if sys.platform == "win32":
-          command = [sys.executable, "-m","label-studio", "start", "--port", "8080"]
-          label_process = subprocess.Popen(command,env=env,creationflags=subprocess.CREATE_NEW_CONSOLE )
-        else:
+        if sys.platform == "linux":
           command = ["label-studio","start" ,"--port", "8080"]   
           label_process = subprocess.Popen(command,env=env,start_new_session=True)
    elif input() == "N":
      # this is kinda redundant ill probbaly change this system
-     if sys.platform == "win32":
-          command = [sys.executable, "-m","label-studio", "start", "--port", "8080"]
-          label_process = subprocess.Popen(command,env=env,creationflags=subprocess.CREATE_NEW_CONSOLE )
-     else:
-          command = ["label-studio","start" ,"--port", "8080"]   
+     if sys.platform == "linux":#in future change env so i can just call "label-studio"
+          command = ["/usr/bin/label-studio","start" ,"--port", "8080"]   
           label_process = subprocess.Popen(command,env=env,start_new_session=True)
    if game_path is None:
      game_path.mkdir(parents=True,exist_ok=True)

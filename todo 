@@ -1,0 +1,21 @@
+#figure out direction i want to take this:
+ 
+
+#game_bot:
+ @get the game bot running
+  finish writing opencv scripts
+   ?loop through the screenshots and dataset
+   ?compare the results find an algorithm for it
+   ?figure out how to take data set and intergrate it into bot
+   ?write function to see if images are a match maybe with the metadata?
+   ?encapsulate dataset
+ @finish this playlist https://www.youtube.com/watch?v=KecMlLUuiE4&list=PL1m2M8LQlzfKtkKq2lK5xko4X-8EZzFPI&index=7
+#ui/ux:
+ @write more interactive prints too skip through some scripts
+  write a line to choose what game_exe you want to run it on
+  maybe a selecter for how many screenshots
+  lock screenshot script to game window
+  rewrite {Yes/No} line so its counts down from 10 and then automatically defaults into running game first
+# unrelated but revise/update resume
+#also update and move some scripts outside of main.py in seperate function file
+#
