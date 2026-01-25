@@ -10,3 +10,4 @@ tests.py
 dataset/*
 dataset/.getkeep
 *todo
+commit.md
