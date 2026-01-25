@@ -1,13 +1,53 @@
+# Game executables
 game/*
-!game/.getkeep
+!game/.gitkeep
+
+# Screenshots
 screenshots/*
-screenshots/.getkeep
+!screenshots/.gitkeep
+
+# Dataset annotations
+dataset/*
+!dataset/.gitkeep
+
+# Python
+/env
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+
+# YOLO/ML outputs
+/yolo_dataset
+runs/
+*.pt
+*.onnx
+*.torchscript
+*.engine
+weights/
+
+# Project specific
 game_evens.jsonl
 game_state.jsonl
-/env
-__pycache__/*
-tests.py
-dataset/*
-dataset/.getkeep
-*todo
+test.py
+todo.md
 commit.md
+CLAUDE.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

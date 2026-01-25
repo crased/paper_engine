@@ -12,14 +12,13 @@
 #after screengrab time == 500.
 #return screengrab to footage folder. 
 from screencapture import take_screenshot, create_screenshots_directory
-from functions import launch_label_studio
+from functions import launch_label_studio, get_title, path_finder
 from pathlib import Path
 import subprocess
 import os
 import time
 import sys
 from pynput import keyboard
-from game_exe_func import get_title, path_finder
 import shutil
 
 def check_python_packages():
