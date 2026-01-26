@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 import random
 import yaml
-from config import training_config as config
+from conf.config_parser import training_conf as config
 
 
 def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping):

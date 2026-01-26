@@ -20,7 +20,7 @@ import time
 import sys
 from pynput import keyboard
 import shutil
-from config import main_config as config
+from conf.config_parser import main_conf as config
 
 def check_python_packages():
     """Check if required Python packages are installed.
@@ -150,7 +150,7 @@ def main():
        print(f"\nAuto-selecting: {'Launch game' if user_input == 'Y' else 'Skip to annotation'}")
 
    # Execute game if user chose Y
-   if user_input == "Y":
+   if user_input == ("Y","y"):
        try:
            game_process = subprocess.Popen(["wine", str(exe_path)])
            print(f"\nStarting game: {exe_path}")
@@ -183,10 +183,16 @@ def main():
        print("\nGame process ended. Screenshots saved to screenshots/ directory.")
 
    # Launch Label Studio for annotation (happens regardless of Y or N choice)
-   launch_label_studio(env)   
-     
-    
- 
+   else:
+      time.sleep(0.1)
+      print(f"To skip annotation press any: KEY")
+      with keyboard.Events() as events:
+        event = events.get(10.0)
+        if event is None:
+          launch_label_studio(env)  
+        else:
+          print(f"skipping label_studio: {event.key}")
+
 
 
 

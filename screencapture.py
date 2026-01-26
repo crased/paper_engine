@@ -8,7 +8,7 @@ import subprocess
 import tkinter as tk
 import threading
 import time
-from config import screencapture_config as config
+from conf.config_parser import screencapture_conf as config
 
 
 

@@ -2,7 +2,7 @@ import os
 import game
 import subprocess
 from pathlib import Path
-
+from pynput import keyboard
 def launch_label_studio(env):
     """Launch Label Studio for annotation.
 
@@ -46,7 +46,7 @@ def path_finder(game_path):
        return None
    exe_path = exe_files[0]
    return exe_path # Assuming the first .exe file is the game executables    
-      
+
 
 
 

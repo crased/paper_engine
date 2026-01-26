@@ -36,4 +36,18 @@ A desktop wallpaper application that transforms game executables into live, inte
 
 **how to use**
 - You can either just run game or you can put game.exe in game.exe folder run and screenshots.py
-- 
+
+**Configuration:**
+
+- Configuration files are located in the `conf` directory in INI format for easy editing
+- **main_config.ini**: Game execution, screenshot intervals, Label Studio settings
+- **screencapture_config.ini**: Screenshot capture and screen protection settings
+- **training_config.ini**: YOLO model training parameters
+
+To customize settings, simply edit the `.ini` files in any text editor. Changes take effect on next run.
+
+Example - Change screenshot interval:
+```ini
+[Screenshot]
+screenshot_interval = 10  # Changed from default 5 seconds
+```
