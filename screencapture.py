@@ -8,6 +8,7 @@ import subprocess
 import tkinter as tk
 import threading
 import time
+from config import screencapture_config as config
 
 
 
@@ -49,7 +50,7 @@ def take_screenshot(directory):
           print(f"Error taking screenshot: {e}")
     else:
        try:
-          subprocess.run(['flameshot', 'screen','-n','1', '-r'], check=True, stdout=open(filepath, 'wb'))
+          subprocess.run(config.FLAMESHOT_COMMAND, check=True, stdout=open(filepath, 'wb'), env=env_vars)
           print(f"✓ Screenshot (flameshot): {filename}")
           return str(filepath)
        except Exception as e:
@@ -59,29 +60,29 @@ class ScreenProtector:
     def __init__(self):
         self.running = False
         self.overlay = None
-        self.stop_key = keyboard.Key.esc  # ESC to stop
-        
+        self.stop_key = getattr(keyboard.Key, config.SCREEN_PROTECTOR_STOP_KEY)
+
     def create_overlay(self):
         """Create semi-transparent overlay"""
         self.overlay = tk.Tk()
         self.overlay.attributes('-fullscreen', True)
-        self.overlay.attributes('-alpha', 0.3)  # Transparency
+        self.overlay.attributes('-alpha', config.OVERLAY_ALPHA)
         self.overlay.attributes('-topmost', True)
-        self.overlay.configure(bg='black')
-        
+        self.overlay.configure(bg=config.OVERLAY_COLOR)
+
         # Make it click-through on Windows
         try:
-            self.overlay.wm_attributes('-transparentcolor', 'black')
+            self.overlay.wm_attributes('-transparentcolor', config.OVERLAY_COLOR)
         except:
             pass
-            
+
         # Label for warning
         label = tk.Label(
-            self.overlay, 
-            text="PROTECTED", 
-            fg="red", 
-            bg="black",
-            font=("Arial", 48)
+            self.overlay,
+            text=config.OVERLAY_WARNING_TEXT,
+            fg=config.OVERLAY_TEXT_COLOR,
+            bg=config.OVERLAY_COLOR,
+            font=(config.OVERLAY_FONT_FAMILY, config.OVERLAY_FONT_SIZE)
         )
         label.pack(expand=True)
         

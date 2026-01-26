@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 import random
 import yaml
+from config import training_config as config
 
 
 def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping):
@@ -220,15 +221,15 @@ def train_model(dataset_yaml, epochs=50, img_size=640, batch_size=16, model_name
         epochs=epochs,
         imgsz=img_size,
         batch=batch_size,
-        name='paper_engine_model',
-        patience=10,  # Early stopping patience
-        save=True,
-        plots=True,
-        verbose=True
+        name=config.MODEL_OUTPUT_NAME,
+        patience=config.PATIENCE,
+        save=config.SAVE_CHECKPOINTS,
+        plots=config.GENERATE_PLOTS,
+        verbose=config.VERBOSE
     )
 
     print("\nTraining completed!")
-    print(f"Best model saved to: runs/detect/paper_engine_model/weights/best.pt")
+    print(f"Best model saved to: runs/detect/{config.MODEL_OUTPUT_NAME}/weights/best.pt")
 
     return model
 
@@ -285,50 +286,39 @@ def main():
     print("Paper Engine - YOLO Model Training")
     print("=" * 60)
 
-    # Configuration
-    DATASET_DIR = 'dataset'
-    SCREENSHOTS_DIR = 'screenshots'
-    OUTPUT_DIR = 'yolo_dataset'
-    TRAIN_SPLIT = 0.8
-    EPOCHS = 50
-    IMG_SIZE = 640
-    BATCH_SIZE = 16
-    MODEL_NAME = 'yolov8n.pt'
-    EXPORT_FORMATS = ['torchscript', 'onnx']
-
     # Step 1: Prepare dataset
     print("\n[Step 1/4] Preparing dataset...")
     class_mapping = prepare_dataset(
-        dataset_dir=DATASET_DIR,
-        screenshots_dir=SCREENSHOTS_DIR,
-        output_dir=OUTPUT_DIR,
-        train_split=TRAIN_SPLIT
+        dataset_dir=config.DATASET_DIR,
+        screenshots_dir=config.SCREENSHOTS_DIR,
+        output_dir=config.OUTPUT_DIR,
+        train_split=config.TRAIN_SPLIT
     )
 
     # Step 2: Create dataset YAML
     print("\n[Step 2/4] Creating dataset configuration...")
-    dataset_yaml = create_dataset_yaml(OUTPUT_DIR, class_mapping)
+    dataset_yaml = create_dataset_yaml(config.OUTPUT_DIR, class_mapping)
 
     # Step 3: Train model
     print("\n[Step 3/4] Training model...")
     model = train_model(
         dataset_yaml=dataset_yaml,
-        epochs=EPOCHS,
-        img_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        model_name=MODEL_NAME
+        epochs=config.EPOCHS,
+        img_size=config.IMG_SIZE,
+        batch_size=config.BATCH_SIZE,
+        model_name=config.MODEL_NAME
     )
 
     # Step 4: Export model
     print("\n[Step 4/4] Exporting model...")
-    best_model_path = 'runs/detect/paper_engine_model/weights/best.pt'
-    exported_models = export_model(best_model_path, formats=EXPORT_FORMATS)
+    best_model_path = config.BEST_MODEL_PATH
+    exported_models = export_model(best_model_path, formats=config.EXPORT_FORMATS)
 
     print("\n" + "=" * 60)
     print("Training Pipeline Complete!")
     print("=" * 60)
     print(f"\nTrained classes: {list(class_mapping.keys())}")
-    print(f"Training results: runs/detect/paper_engine_model/")
+    print(f"Training results: runs/detect/{config.MODEL_OUTPUT_NAME}/")
     print(f"Best model: {best_model_path}")
     print(f"\nExported models:")
     for model_path in exported_models:

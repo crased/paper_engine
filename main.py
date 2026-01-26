@@ -10,7 +10,7 @@
 #set delay to 500ms. this is the delay for screen grab activation.
 #record time should be set in screengrab.py.
 #after screengrab time == 500.
-#return screengrab to footage folder. 
+#return screengrab to footage folder.
 from screencapture import take_screenshot, create_screenshots_directory
 from functions import launch_label_studio, get_title, path_finder
 from pathlib import Path
@@ -20,6 +20,7 @@ import time
 import sys
 from pynput import keyboard
 import shutil
+from config import main_config as config
 
 def check_python_packages():
     """Check if required Python packages are installed.
@@ -116,16 +117,19 @@ def main():
 
    # Set up environment for Label Studio
    env = os.environ.copy()
-   env["LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED"] = "true"
+   env.update(config.LABEL_STUDIO_ENV)
 
    # Validate game directory exists
-   game_path = "game/"
+   game_path = config.GAME_PATH
    if not Path(game_path).exists():
-       print(f"\nERROR: Game directory '{game_path}' does not exist.")
-       print(f"Creating directory: {game_path}")
-       Path(game_path).mkdir(parents=True, exist_ok=True)
-       print(f"Please place a Windows game executable (.exe) in {game_path}")
-       sys.exit(1)
+       if config.AUTO_CREATE_DIRECTORIES:
+           print(f"\nCreating game directory: {game_path}")
+           Path(game_path).mkdir(parents=True, exist_ok=True)
+           print(f"Please place a Windows game executable (.exe) in {game_path}")
+           sys.exit(1)
+       else:
+           print(f"\nERROR: Game directory '{game_path}' does not exist.")
+           sys.exit(1)
 
    # Find game executable
    exe_path = path_finder(game_path)
@@ -136,9 +140,14 @@ def main():
 
    # Get user input for game execution
    game_titles = get_title(game_path)
-   print(f"\nTo run {game_titles} and capture screenshots, enter Y")
-   print("To skip game execution and go directly to annotation, enter N")
-   user_input = input("Choice (Y/N): ").strip().upper()
+
+   if config.PROMPT_USER_FOR_GAME_LAUNCH:
+       print(f"\nTo run {game_titles} and capture screenshots, enter Y")
+       print("To skip game execution and go directly to annotation, enter N")
+       user_input = input("Choice (Y/N): ").strip().upper()
+   else:
+       user_input = "Y" if config.DEFAULT_LAUNCH_GAME else "N"
+       print(f"\nAuto-selecting: {'Launch game' if user_input == 'Y' else 'Skip to annotation'}")
 
    # Execute game if user chose Y
    if user_input == "Y":
@@ -164,11 +173,11 @@ def main():
            sys.exit(1)
 
        # Wait for game to initialize
-       time.sleep(10)
+       time.sleep(config.GAME_INITIALIZATION_WAIT)
 
        # Capture screenshots while game is running
        while game_process.poll() is None:
-           time.sleep(5)
+           time.sleep(config.SCREENSHOT_INTERVAL)
            take_screenshot(create_screenshots_directory())
 
        print("\nGame process ended. Screenshots saved to screenshots/ directory.")
