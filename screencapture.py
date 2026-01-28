@@ -34,10 +34,7 @@ def take_screenshot(directory):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"screenshot_{timestamp}.png"
     filepath = os.path.join(directory, filename)
-    env_vars = os.environ.copy()
-    env_vars["XDG_CURRENT_DESKTOP"] = "sway"
-    env_vars["QT_QPA_PLATFORM"] = "wayland"
-    
+
     if sys.platform == "win32":
        from Pil import imageGrab
        try:
@@ -50,7 +47,9 @@ def take_screenshot(directory):
           print(f"Error taking screenshot: {e}")
     else:
        try:
-          subprocess.run(config.FLAMESHOT_COMMAND, check=True, stdout=open(filepath, 'wb'), env=env_vars)
+          # Use shell redirection for flameshot compatibility
+          cmd = ' '.join(config.FLAMESHOT_COMMAND) + f' > "{filepath}"'
+          subprocess.run(cmd, check=True, shell=True)
           print(f"✓ Screenshot (flameshot): {filename}")
           return str(filepath)
        except Exception as e:
