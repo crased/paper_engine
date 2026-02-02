@@ -10,7 +10,7 @@ screenshots/*
 dataset/*
 !dataset/.gitkeep
 
-# Python
+# Pythonint
 /env
 venv/
 __pycache__/
@@ -20,7 +20,7 @@ __pycache__/
 .Python
 *.so
 .pytest_cache/
-
+.env
 # YOLO/ML outputs
 /yolo_dataset
 runs/
@@ -37,7 +37,7 @@ test.py
 todo.md
 commit.md
 CLAUDE.md
-
+.claude
 # IDE
 .vscode/
 .idea/

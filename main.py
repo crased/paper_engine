@@ -189,7 +189,7 @@ def main():
       with keyboard.Events() as events:
         event = events.get(10.0)
         if event is None:
-          launch_label_studio(env)  
+          launch_label_studio(env)
         else:
           print(f"skipping label_studio: {event.key}")
 
