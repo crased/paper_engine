@@ -18,7 +18,6 @@ import subprocess
 import os
 import time
 import sys
-from pynput import keyboard
 import shutil
 from conf.config_parser import main_conf as config
 
@@ -138,19 +137,12 @@ def main():
        print("Please place a Windows game executable (.exe) in the game/ folder.")
        sys.exit(1)
 
-   # Get user input for game execution
-   game_titles = get_title(game_path)
+   game_title = get_title(game_path)
 
-   if config.PROMPT_USER_FOR_GAME_LAUNCH:
-       print(f"\nTo run {game_titles} and capture screenshots, enter Y")
-       print("To skip game execution and go directly to annotation, enter N")
-       user_input = input("Choice (Y/N): ").strip().upper()
-   else:
-       user_input = "Y" if config.DEFAULT_LAUNCH_GAME else "N"
-       print(f"\nAuto-selecting: {'Launch game' if user_input == 'Y' else 'Skip to annotation'}")
-
-   # Execute game if user chose Y
-   if user_input == ("Y","y"):
+   # --- Step 1: Launch game (optional) ---
+   time.sleep(0.5)
+   choice = input("\nLaunch game? (Y/N): ").strip().upper()
+   if choice == "Y":
        try:
            game_process = subprocess.Popen(["wine", str(exe_path)])
            print(f"\nStarting game: {exe_path}")
@@ -175,23 +167,31 @@ def main():
        # Wait for game to initialize
        time.sleep(config.GAME_INITIALIZATION_WAIT)
 
-       # Capture screenshots while game is running
+       # Step 1.5: Screenshot loop — runs while game is active
        while game_process.poll() is None:
            time.sleep(config.SCREENSHOT_INTERVAL)
            take_screenshot(create_screenshots_directory())
 
        print("\nGame process ended. Screenshots saved to screenshots/ directory.")
-
-   # Launch Label Studio for annotation (happens regardless of Y or N choice)
    else:
-      time.sleep(0.1)
-      print(f"To skip annotation press any: KEY")
-      with keyboard.Events() as events:
-        event = events.get(10.0)
-        if event is None:
-          launch_label_studio(env)
-        else:
-          print(f"skipping label_studio: {event.key}")
+       print("Skipping game launch.")
+
+   # --- Step 2: Launch Label Studio (optional) ---
+   time.sleep(0.5)
+   choice = input("\nLaunch Label Studio for annotation? (Y/N): ").strip().upper()
+   if choice == "Y":
+       launch_label_studio(env)
+   else:
+       print("Skipping Label Studio.")
+
+   # --- Step 3: Train YOLO model (optional) ---
+   time.sleep(0.5)
+   choice = input("\nTrain YOLO model? (Y/N): ").strip().upper()
+   if choice == "Y":
+       import training_model
+       training_model.main()
+   else:
+       print("Skipping model training.")
 
 
 
