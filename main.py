@@ -11,7 +11,7 @@
 #record time should be set in screengrab.py.
 #after screengrab time == 500.
 #return screengrab to footage folder.
-from screencapture import take_screenshot, create_screenshots_directory
+from screencapture import take_screenshot, create_screenshots_directory, find_wine_window
 from functions import launch_label_studio, get_title, path_finder
 from pathlib import Path
 import subprocess
@@ -144,7 +144,7 @@ def main():
    choice = input("\nLaunch game? (Y/N): ").strip().upper()
    if choice == "Y":
        try:
-           game_process = subprocess.Popen(["wine", str(exe_path)])
+           game_process = subprocess.Popen(["wine", "explorer", f"/desktop=game,{config.WINE_DESKTOP_RESOLUTION}", str(exe_path)])
            print(f"\nStarting game: {exe_path}")
            print("Screenshots will be captured every 5 seconds...")
        except FileNotFoundError:
@@ -167,12 +167,23 @@ def main():
        # Wait for game to initialize
        time.sleep(config.GAME_INITIALIZATION_WAIT)
 
+       # Detect game window geometry once after init
+       window_geometry = find_wine_window()
+       if window_geometry:
+           print(f"Locked onto game window: {window_geometry}")
+       else:
+           print("Could not detect game window, falling back to full screen capture.")
+
        # Step 1.5: Screenshot loop — runs while game is active
+       screenshots_dir = create_screenshots_directory()
+       imgs_before = len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])
+
        while game_process.poll() is None:
            time.sleep(config.SCREENSHOT_INTERVAL)
-           take_screenshot(create_screenshots_directory())
+           take_screenshot(screenshots_dir, window_geometry)
 
-       print("\nGame process ended. Screenshots saved to screenshots/ directory.")
+       imgs_after = len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])
+       print(f"\nGame process ended. Added {imgs_after - imgs_before} images. Total: {imgs_after}")
    else:
        print("Skipping game launch.")
 

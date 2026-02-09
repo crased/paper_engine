@@ -91,7 +91,7 @@ def take_screenshot(directory, window_geometry=None):
           # Check if we should capture a specific window
           if config.CAPTURE_WINDOW_ONLY and window_geometry:
               # Use flameshot gui with geometry for window-specific capture
-              cmd = ['flameshot', 'gui', '-g', window_geometry, '-p', filepath]
+              cmd = ['flameshot', 'gui', '--region', window_geometry, '-p', filepath]
               subprocess.run(cmd, check=True)
               print(f"✓ Screenshot (flameshot, window): {filename}")
           else:
