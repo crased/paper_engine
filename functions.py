@@ -1,5 +1,5 @@
 import os
-import game
+import sys
 import subprocess
 from pathlib import Path
 from pynput import keyboard
