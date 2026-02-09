@@ -8,8 +8,9 @@ import shutil
 from pathlib import Path
 import random
 import yaml
+from conf.config_parser import prepare_dataset_conf as config
 
-def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping):
+def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping, label_mapping=None):
     """
     Convert a single Label Studio JSON file to YOLO format.
 
@@ -17,10 +18,13 @@ def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping):
         json_file: Path to Label Studio JSON annotation file
         output_labels_dir: Directory to save YOLO format labels
         class_mapping: Dict mapping class names to class IDs
+        label_mapping: Optional dict for renaming labels {old_name: new_name}
 
     Returns:
         str: Image filename referenced in the annotation
     """
+    if label_mapping is None:
+        label_mapping = {}
     with open(json_file, 'r') as f:
         data = json.load(f)
 
@@ -42,6 +46,9 @@ def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping):
 
         value = annotation['value']
         label = value['rectanglelabels'][0]
+
+        # Apply label renaming if configured
+        label = label_mapping.get(label, label)
 
         if label not in class_mapping:
             print(f"Warning: Unknown label '{label}' in {json_file}")
@@ -71,19 +78,28 @@ def convert_label_studio_to_yolo(json_file, output_labels_dir, class_mapping):
     return None
 
 
-def prepare_dataset(dataset_dir='dataset', screenshots_dir='screenshots', output_dir='dataset', train_split=0.8):
+def prepare_dataset(dataset_dir=None, screenshots_dir=None, output_dir=None, train_split=None):
     """
     Prepare YOLO dataset from Label Studio annotations.
 
     Args:
-        dataset_dir: Directory containing Label Studio JSON files
-        screenshots_dir: Directory containing screenshot images
-        output_dir: Output directory for YOLO format dataset (will be dataset/)
-        train_split: Fraction of data to use for training
+        dataset_dir: Directory containing Label Studio JSON files (default: from config)
+        screenshots_dir: Directory containing screenshot images (default: from config)
+        output_dir: Output directory for YOLO format dataset (default: from config)
+        train_split: Fraction of data to use for training (default: from config)
 
     Returns:
         dict: Class mapping {class_name: class_id}
     """
+    # Use config defaults if not specified
+    if dataset_dir is None:
+        dataset_dir = config.DATASET_DIR
+    if screenshots_dir is None:
+        screenshots_dir = config.SCREENSHOTS_DIR
+    if output_dir is None:
+        output_dir = config.OUTPUT_DIR
+    if train_split is None:
+        train_split = config.TRAIN_SPLIT
     dataset_path = Path(dataset_dir)
     screenshots_path = Path(screenshots_dir)
     output_path = Path(output_dir)
@@ -93,7 +109,7 @@ def prepare_dataset(dataset_dir='dataset', screenshots_dir='screenshots', output
         (output_path / split / 'images').mkdir(parents=True, exist_ok=True)
         (output_path / split / 'labels').mkdir(parents=True, exist_ok=True)
 
-    # Collect all unique class names
+    # Collect all unique class names from annotations
     all_classes = set()
     json_files = list(dataset_path.glob('[0-9]*'))
 
@@ -106,21 +122,39 @@ def prepare_dataset(dataset_dir='dataset', screenshots_dir='screenshots', output
                 for label in annotation['value']['rectanglelabels']:
                     all_classes.add(label)
 
-    # Create class mapping
-    class_mapping = {cls: idx for idx, cls in enumerate(sorted(all_classes))}
-    print(f"Found {len(class_mapping)} classes: {list(class_mapping.keys())}")
+    print(f"Discovered {len(all_classes)} unique labels: {sorted(all_classes)}")
+
+    # Create class mapping using config (supports custom grouping and renaming)
+    class_mapping = config.get_class_mapping(all_classes)
+
+    if not class_mapping:
+        print("WARNING: No class mapping generated!")
+        return {}
+
+    print(f"\nClass mapping ({len(class_mapping)} classes):")
+    for class_name, class_id in sorted(class_mapping.items(), key=lambda x: x[1]):
+        print(f"  {class_id}: {class_name}")
 
     # Process all annotations
     processed_images = []
     temp_labels_dir = output_path / 'temp_labels'
     temp_labels_dir.mkdir(exist_ok=True)
 
+    # Get label mapping for renaming
+    label_mapping = config.LABEL_MAPPING
+
     for json_file in json_files:
-        image_filename = convert_label_studio_to_yolo(json_file, temp_labels_dir, class_mapping)
+        image_filename = convert_label_studio_to_yolo(
+            json_file, temp_labels_dir, class_mapping, label_mapping
+        )
         if image_filename:
             processed_images.append(image_filename)
 
     # Shuffle and split dataset
+    random_seed = config.RANDOM_SEED
+    if random_seed and random_seed > 0:
+        random.seed(random_seed)
+        print(f"\nUsing random seed: {random_seed} (reproducible split)")
     random.shuffle(processed_images)
     split_idx = int(len(processed_images) * train_split)
     train_images = processed_images[:split_idx]
@@ -184,16 +218,24 @@ if __name__ == "__main__":
     print("Converting Local Dataset to YOLO Format")
     print("=" * 60)
 
-    # Prepare dataset
-    class_mapping = prepare_dataset(
-        dataset_dir='dataset',
-        screenshots_dir='screenshots',
-        output_dir='dataset',
-        train_split=0.8
-    )
+    # Show configuration
+    print(f"\nConfiguration:")
+    print(f"  Dataset directory: {config.DATASET_DIR}")
+    print(f"  Screenshots directory: {config.SCREENSHOTS_DIR}")
+    print(f"  Output directory: {config.OUTPUT_DIR}")
+    print(f"  Train split: {config.TRAIN_SPLIT * 100}%")
+    print(f"  Custom grouping: {'Enabled' if config.ENABLE_CUSTOM_GROUPING else 'Disabled (auto-discovery)'}")
+
+    # Prepare dataset (uses config defaults)
+    class_mapping = prepare_dataset()
+
+    if not class_mapping:
+        print("\nERROR: No classes mapped. Check your configuration.")
+        import sys
+        sys.exit(1)
 
     # Create YAML config
-    create_dataset_yaml('dataset', class_mapping)
+    create_dataset_yaml(config.OUTPUT_DIR, class_mapping)
 
     print("\n" + "=" * 60)
     print("Dataset Ready for Training!")

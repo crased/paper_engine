@@ -163,10 +163,102 @@ class TrainingConfig(ConfigParser):
         return formats
 
 
+class PrepareDatasetConfig(ConfigParser):
+    """Configuration for prepare_local_dataset.py"""
+
+    def __init__(self):
+        config_dir = Path(__file__).parent
+        super().__init__(config_dir / "prepare_dataset_conf.ini")
+
+    @property
+    def LABEL_GROUPS(self):
+        """
+        Return label groups as OrderedDict
+        Format: {group_name: [label1, label2, ...]}
+        """
+        from collections import OrderedDict
+
+        if not self.parser.has_section('Groups'):
+            return OrderedDict()
+
+        groups = OrderedDict()
+        for group_name, labels_str in self.parser.items('Groups'):
+            if labels_str.strip():  # Only include non-empty groups
+                labels = [label.strip() for label in labels_str.split(',') if label.strip()]
+                if labels:
+                    groups[group_name] = labels
+
+        return groups
+
+    @property
+    def LABEL_MAPPING(self):
+        """
+        Return label mapping for renaming labels
+        Format: {original_name: new_name}
+        """
+        if not self.parser.has_section('LabelMapping'):
+            return {}
+
+        mapping = {}
+        for original, new_name in self.parser.items('LabelMapping'):
+            if new_name.strip():
+                mapping[original] = new_name.strip()
+
+        return mapping
+
+    def get_class_mapping(self, discovered_classes=None):
+        """
+        Generate class mapping based on configuration
+
+        Args:
+            discovered_classes: Set of classes found in annotations (optional)
+
+        Returns:
+            dict: {class_name: class_id}
+        """
+        # Apply label renaming if configured
+        label_mapping = self.LABEL_MAPPING
+
+        if self.ENABLE_CUSTOM_GROUPING:
+            # Use custom groups
+            label_groups = self.LABEL_GROUPS
+
+            if not label_groups:
+                print("WARNING: enable_custom_grouping=true but no groups defined")
+                print("Falling back to auto-discovery")
+                if discovered_classes:
+                    return {cls: idx for idx, cls in enumerate(sorted(discovered_classes))}
+                return {}
+
+            # Create mapping with sequential IDs
+            class_mapping = {}
+            class_id = 0
+
+            for group_name, labels in label_groups.items():
+                for label in labels:
+                    # Apply renaming if configured
+                    final_label = label_mapping.get(label, label)
+                    class_mapping[final_label] = class_id
+                    class_id += 1
+
+            return class_mapping
+        else:
+            # Auto-discover and sort alphabetically
+            if discovered_classes:
+                # Apply renaming
+                renamed_classes = set()
+                for cls in discovered_classes:
+                    renamed_classes.add(label_mapping.get(cls, cls))
+
+                return {cls: idx for idx, cls in enumerate(sorted(renamed_classes))}
+            return {}
+
+
 # Create singleton instances for easy import
 main_conf = MainConfig()
 screencapture_conf = ScreencaptureConfig()
 training_conf = TrainingConfig()
+prepare_dataset_conf = PrepareDatasetConfig()
 
 
 # For backwards compatibility, expose all config values at module level
