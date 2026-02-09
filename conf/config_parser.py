@@ -114,9 +114,9 @@ class MainConfig(ConfigParser):
     @property
     def LABEL_STUDIO_ENV(self):
         """Return Label Studio environment variables as dict"""
+        enabled = self.get("LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED", True)
         return {
-            "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED":
-                str(self.get("LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED", "true"))
+            "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true" if enabled else "false"
         }
 
 
@@ -178,9 +178,6 @@ def _expose_config_values():
     # Expose main config
     for key, value in main_conf.items():
         setattr(module, key, value)
-
-    # Add special properties
-    setattr(module, 'LABEL_STUDIO_ENV', main_conf.LABEL_STUDIO_ENV)
 
 
 # Uncomment below if you want module-level access to config values
