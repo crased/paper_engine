@@ -1,7 +1,6 @@
 import os
 import sys
 import subprocess
-import sys
 from pathlib import Path
 from pynput import keyboard
 def launch_label_studio(env):
