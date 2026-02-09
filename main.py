@@ -204,6 +204,16 @@ def main():
    else:
        print("Skipping model training.")
 
+   # --- Step 3.5: Test trained model (optional) ---
+   time.sleep(0.5)
+   choice = input("\nTest trained model on screenshots? (Y/N): ").strip().upper()
+   if choice == "Y":
+       import test_model
+       # Use default parameters: best.pt model, screenshots directory, conf=0.25
+       test_model.test_model()
+   else:
+       print("Skipping model testing.")
+
 
 
 
