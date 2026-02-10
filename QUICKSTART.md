@@ -2,9 +2,9 @@
 
 Get up and running in 5 minutes!
 
-## Prerequisites
-
 > **⚠️ LINUX ONLY:** Paper Engine currently only works on Linux. Windows and macOS are not supported.
+
+## Prerequisites
 
 - **Linux OS** (tested on Arch with Wayland)
 - **Python 3.8+** installed
@@ -39,14 +39,7 @@ That's it! The script handles everything else automatically.
 
 ## What Happens Next?
 
-The run script will:
-
-1. ✅ Create a virtual environment (first run only)
-2. ✅ Activate the environment
-3. ✅ Offer to install dependencies (first run only)
-4. ✅ Launch Paper Engine
-
-Paper Engine will then guide you through:
+Paper Engine will guide you through a complete 6-step workflow:
 
 1. **Launch game?** → Play for a few minutes
 2. **Label Studio?** → Annotate objects in screenshots
@@ -80,55 +73,20 @@ python bot_scripts/<game_name>_bot.py
 
 Press **ESC** to stop the bot.
 
-## Troubleshooting
-
-### "Permission denied: ./paperengine"
-```bash
-chmod +x paperengine
-./paperengine
-```
-
-### "python not found"
-Try `python3`:
-```bash
-python3 main.py
-```
-
-### Missing system tools (Linux only)
-
-```bash
-# Install Wine (for running Windows games)
-sudo apt install wine         # Ubuntu/Debian
-sudo pacman -S wine          # Arch
-sudo dnf install wine        # Fedora
-
-# Install Flameshot (for screenshots)
-sudo apt install flameshot    # Ubuntu/Debian
-sudo pacman -S flameshot     # Arch
-sudo dnf install flameshot   # Fedora
-```
-
-### Dependencies not installing
-
-Manual install:
-```bash
-source env/bin/activate
-pip install -r requirements.txt
-```
-
 ## Need Help?
 
-- **Documentation:** See [README.md](README.md)
-- **Issues:** https://github.com/crased/paper_engine/issues
+- **Troubleshooting:** See [README.md - Troubleshooting section](README.md#troubleshooting)
+- **Full Documentation:** See [README.md](README.md)
 - **Developer Guide:** See [CLAUDE.md](CLAUDE.md)
+- **Issues:** https://github.com/crased/paper_engine/issues
 
 ## Security Warning
 
 ⚠️ **NEVER share your API key or commit .env to git!**
 
-See README.md for comprehensive security guidelines.
+See [README.md - Security Notes](README.md#security-notes) for comprehensive security guidelines.
 
 ---
 
-**Paper Engine v1.0 - Pre-Release**  
+**Paper Engine v1.0 - Pre-Release**
 Create AI-powered game bots in minutes!

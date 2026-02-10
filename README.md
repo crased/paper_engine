@@ -171,6 +171,23 @@ The script will automatically:
 - Offer to install dependencies
 - Launch Paper Engine
 
+### What Happens Next?
+
+Paper Engine will guide you through a complete 6-step workflow:
+
+1. **Launch game?** → Play for a few minutes to capture screenshots
+2. **Label Studio?** → Annotate objects in screenshots (10 sec countdown, press any key to skip)
+3. **Train YOLO?** → Train object detection model
+4. **Test model?** → Verify detection works
+5. **Search controls?** → AI finds keyboard controls (requires API key)
+6. **Generate bot?** → AI creates bot script (requires API key)
+
+After completion, your bot is ready to run:
+```bash
+python bot_scripts/<game_name>_bot.py
+```
+Press **ESC** to stop the bot.
+
 ### Manual Start
 
 ```bash
@@ -180,13 +197,6 @@ source env/bin/activate
 # Run Paper Engine
 python main.py
 ```
-
-This runs the complete pipeline:
-1. **Launch game** (Y/N) → Captures screenshots during gameplay
-2. **Label Studio** (10 sec countdown, press any key to skip) → Annotate screenshots
-3. **Train YOLO model** (Y/N) → Convert annotations and train
-4. **Search game controls** (Y/N) → AI searches web for controls
-5. **Generate bot script** (Y/N) → Creates executable bot script
 
 ### Standalone Utilities
 
@@ -308,6 +318,42 @@ Supports multiple LLM providers: Google Gemini (free), Anthropic Claude (paid), 
 - Review generated bot scripts before running
 - Wine executes with your user privileges - only run trusted game executables
 - Be cautious with games from unknown sources
+
+## Troubleshooting
+
+### "Permission denied: ./paperengine"
+```bash
+chmod +x paperengine
+./paperengine
+```
+
+### "python not found"
+Try `python3` instead:
+```bash
+python3 main.py
+```
+
+### Missing system tools (Linux only)
+
+```bash
+# Install Wine (for running Windows games)
+sudo apt install wine         # Ubuntu/Debian
+sudo pacman -S wine          # Arch
+sudo dnf install wine        # Fedora
+
+# Install Flameshot (for screenshots)
+sudo apt install flameshot    # Ubuntu/Debian
+sudo pacman -S flameshot     # Arch
+sudo dnf install flameshot   # Fedora
+```
+
+### Dependencies not installing
+
+Manual installation:
+```bash
+source env/bin/activate
+pip install -r requirements.txt
+```
 
 ## Testing
 
