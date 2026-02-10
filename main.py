@@ -131,7 +131,7 @@ def validate_dependencies():
     system_tools = check_system_tools()
 
     # Categorize missing packages
-    core_packages = ['pynput', 'Pillow', 'mss', 'python-dotenv', 'pyyaml']
+    core_packages = ['pynput', 'python-dotenv', 'pyyaml']
     training_packages = ['ultralytics', 'torch']
     llm_packages = ['anthropic', 'openai', 'google-generativeai']
 
@@ -139,6 +139,10 @@ def validate_dependencies():
     missing_training = [pkg for pkg in training_packages if pkg in python_packages and not python_packages[pkg][0]]
     missing_llm = [pkg for pkg in llm_packages if pkg in python_packages and not python_packages[pkg][0]]
     missing_tools = [tool for tool, (found, _) in system_tools.items() if not found]
+
+    # Check if at least one LLM provider is already installed
+    installed_llm = [pkg for pkg in llm_packages if pkg in python_packages and python_packages[pkg][0]]
+    has_llm_provider = len(installed_llm) > 0
 
     # If everything is installed, we're good
     if not missing_core and not missing_training and not missing_llm and not missing_tools:
@@ -186,8 +190,8 @@ def validate_dependencies():
         else:
             print("Skipping training packages. YOLO training will not be available.")
 
-    # Handle missing LLM packages
-    if missing_llm:
+    # Handle missing LLM packages (skip if at least one is already installed)
+    if missing_llm and not has_llm_provider:
         print("\n⚠️  Missing LLM provider dependencies (optional for bot generation):")
         print("  - anthropic (Claude)")
         print("  - openai (GPT)")
@@ -221,6 +225,8 @@ def validate_dependencies():
             for pkg in llm_to_install:
                 install_python_package(pkg)
             print("\n✓ LLM packages installation complete!")
+    elif has_llm_provider:
+        print(f"\n✓ LLM provider already installed: {', '.join(installed_llm)}")
 
     # Handle missing system tools
     if missing_tools:
