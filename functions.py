@@ -28,10 +28,25 @@ def launch_label_studio(env):
         sys.exit(1)
 
 def get_title(game_path):
-   for file in Path(game_path).iterdir():
-     if file.name.endswith(".exe"):
-       title = file.name.rstrip(".exe").strip()
-   return title
+   """Extract game title from executable filename.
+
+   Supports .exe, .sh, .py, and no-extension executables.
+   """
+   game_path_obj = Path(game_path)
+
+   # If game_path is a file, extract title from it directly
+   if game_path_obj.is_file():
+       return game_path_obj.stem if game_path_obj.suffix else game_path_obj.name
+
+   # If game_path is a directory, find executable in it
+   for file in game_path_obj.iterdir():
+       if file.is_file():
+           # Check for common executable extensions or execute permission
+           if file.suffix in ['.exe', '.sh', '.py'] or (not file.suffix and os.access(file, os.X_OK)):
+               return file.stem if file.suffix else file.name
+
+   # Fallback: use directory name
+   return game_path_obj.name
 def path_finder(game_path):
    game_path = Path("game/")
    # You may have to change games x permissions level to continue.
@@ -39,30 +54,82 @@ def path_finder(game_path):
      print(f"Game folder '{game_path}' not found!")
      return None
 
-   # Recursively find all .exe files in game/ directory and subdirectories
-   exe_files = list(game_path.rglob("*.exe"))
+   # Find executable files by multiple methods:
+   # 1. *.exe files (Windows games via Wine)
+   # 2. *.sh scripts (shell scripts)
+   # 3. *.py scripts (Python games)
+   # 4. Files with execute permission (Linux native executables)
+   executable_files = []
 
-   if not exe_files:
-       print("No .exe files found in game folder.")
+   # Find .exe files
+   executable_files.extend(game_path.rglob("*.exe"))
+
+   # Find .sh scripts
+   executable_files.extend(game_path.rglob("*.sh"))
+
+   # Find .py scripts
+   executable_files.extend(game_path.rglob("*.py"))
+
+   # Find Linux native executables (files with execute permission, no extension)
+   for file in game_path.rglob("*"):
+       if file.is_file() and os.access(file, os.X_OK) and not file.suffix:
+           executable_files.append(file)
+
+   if not executable_files:
+       print("No game executables found in game folder.")
        return None
 
-   # If only one .exe found, auto-select it
-   if len(exe_files) == 1:
-       return exe_files[0]
+   # Filter out common non-game executables
+   excluded_patterns = [
+       'crash', 'uninstall', 'setup', 'config', 'launcher', 'update',
+       'installer', 'unity', 'unreal', 'helper', 'reporter'
+   ]
 
-   # If multiple .exe files, let user choose
+   filtered_exe_files = []
+   for exe in executable_files:
+       exe_lower = exe.name.lower()
+       if not any(pattern in exe_lower for pattern in excluded_patterns):
+           filtered_exe_files.append(exe)
+
+   # If filtering removed all files, use original list
+   if not filtered_exe_files:
+       filtered_exe_files = executable_files
+
+   # Smart prioritization: executable matching folder name goes first
+   def prioritize_exe(exe):
+       folder_name = exe.parent.name.lower()
+       exe_name = exe.stem.lower()
+
+       # Priority 1: Exact match with folder name
+       if exe_name == folder_name:
+           return (0, -exe.stat().st_size)
+       # Priority 2: Folder name is in exe name
+       elif folder_name in exe_name:
+           return (1, -exe.stat().st_size)
+       # Priority 3: Sort by file size (larger = likely main game)
+       else:
+           return (2, -exe.stat().st_size)
+
+   filtered_exe_files.sort(key=prioritize_exe)
+
+   # If only one executable found after filtering, auto-select it
+   if len(filtered_exe_files) == 1:
+       return filtered_exe_files[0]
+
+   # If multiple executables, let user choose
    print("\nMultiple game executables found:")
-   for idx, exe in enumerate(exe_files, 1):
-       print(f"  {idx}) {exe}")
+   for idx, exe in enumerate(filtered_exe_files, 1):
+       size_mb = exe.stat().st_size / (1024 * 1024)
+       print(f"  {idx}) {exe} ({size_mb:.1f} MB)")
 
    while True:
        try:
-           choice = input(f"\nSelect game (1-{len(exe_files)}): ").strip()
+           choice = input(f"\nSelect game (1-{len(filtered_exe_files)}): ").strip()
            selected_idx = int(choice) - 1
-           if 0 <= selected_idx < len(exe_files):
-               return exe_files[selected_idx]
+           if 0 <= selected_idx < len(filtered_exe_files):
+               return filtered_exe_files[selected_idx]
            else:
-               print(f"Please enter a number between 1 and {len(exe_files)}")
+               print(f"Please enter a number between 1 and {len(filtered_exe_files)}")
        except ValueError:
            print("Please enter a valid number")
        except KeyboardInterrupt:

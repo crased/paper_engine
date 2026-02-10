@@ -19,13 +19,14 @@ A game automation and computer vision framework that combines Wine game executio
 
 Paper Engine automates the complete pipeline for creating game bots:
 
-1. **Game Execution**: Runs Windows game executables via Wine (Linux)
+1. **Game Execution**: Runs game executables (Windows via Wine, Linux native, scripts)
 2. **Screenshot Capture**: Automatically captures gameplay screenshots every 5 seconds
 3. **Annotation**: Label Studio integration for object detection annotation
 4. **Model Training**: Converts annotations to YOLO format and trains YOLO11 models
 5. **Controls Discovery**: AI-powered web search for game controls
 6. **Bot Generation**: Automatically generates Python bot scripts using YOLO + controls
 
+Supports Windows games (.exe via Wine), Linux native executables, shell scripts (.sh), and Python games (.py).
 Currently tested with Cuphead, but designed to work with any game executable.
 
 ## Features
@@ -257,7 +258,7 @@ Press ESC to stop the bot.
 
 ```
 paper_engine/
-├── game/                    # Place .exe files here
+├── game/                    # Place game executables here (.exe, .sh, .py, or native)
 ├── screenshots/             # Auto-captured screenshots
 ├── dataset/                 # Label Studio annotations (JSON)
 ├── yolo_dataset/           # YOLO-formatted dataset
@@ -414,7 +415,7 @@ pip install -r requirements.txt
 ## Testing
 
 Manual testing workflow:
-1. Place game `.exe` in `game/`
+1. Place game executable in `game/` (.exe, .sh, .py, or native Linux executable)
 2. Run `python main.py`
 3. Play game briefly, then close
 4. Verify screenshots in `screenshots/`

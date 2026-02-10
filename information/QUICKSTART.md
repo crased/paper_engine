@@ -9,9 +9,9 @@ Get up and running in 5 minutes!
 - **Linux OS** (tested on Arch with Wayland)
 - **Python 3.8+** installed
 - **Git** installed
-- **Wine** installed (for running Windows games)
+- **Wine** installed (for running Windows .exe games)
 - **Screenshot tool** installed (flameshot recommended, or scrot/imagemagick)
-- **Game .exe file** ready
+- **Game executable** ready (.exe, .sh, .py, or Linux native)
 
 ## Installation
 

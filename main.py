@@ -300,15 +300,34 @@ def main():
    choice = input("\nLaunch game? (Y/N): ").strip().upper()
    if choice == "Y":
        try:
-           game_process = subprocess.Popen(["wine", "explorer", f"/desktop=game,{config.WINE_DESKTOP_RESOLUTION}", str(exe_path)])
-           print(f"\nStarting game: {exe_path}")
+           # Determine launch method based on file type
+           exe_path_obj = Path(exe_path)
+
+           if exe_path_obj.suffix.lower() == '.exe':
+               # Windows executable - use Wine
+               game_process = subprocess.Popen(["wine", "explorer", f"/desktop=game,{config.WINE_DESKTOP_RESOLUTION}", str(exe_path)])
+               print(f"\nStarting game via Wine: {exe_path}")
+           elif exe_path_obj.suffix.lower() == '.sh':
+               # Shell script - use bash
+               game_process = subprocess.Popen(["bash", str(exe_path)])
+               print(f"\nStarting game script: {exe_path}")
+           elif exe_path_obj.suffix.lower() == '.py':
+               # Python script - use python
+               game_process = subprocess.Popen(["python", str(exe_path)])
+               print(f"\nStarting Python game: {exe_path}")
+           else:
+               # Native Linux executable - launch directly
+               game_process = subprocess.Popen([str(exe_path)])
+               print(f"\nStarting native game: {exe_path}")
+
            print("Screenshots will be captured every 5 seconds...")
-       except FileNotFoundError:
-           print("\nERROR: Wine executable not found.")
-           print("Install wine:")
-           print("  Ubuntu/Debian: sudo apt install wine")
-           print("  Arch: sudo pacman -S wine")
-           print("  Fedora: sudo dnf install wine")
+       except FileNotFoundError as e:
+           print(f"\nERROR: Executable or required tool not found: {e}")
+           if exe_path_obj.suffix.lower() == '.exe':
+               print("Install wine:")
+               print("  Ubuntu/Debian: sudo apt install wine")
+               print("  Arch: sudo pacman -S wine")
+               print("  Fedora: sudo dnf install wine")
            sys.exit(1)
        except PermissionError:
            print(f"\nERROR: Permission denied when executing: {exe_path}")
@@ -317,7 +336,10 @@ def main():
        except subprocess.SubprocessError as e:
            print(f"\nERROR: Failed to start game process: {e}")
            print(f"Game: {exe_path}")
-           print("Check that the .exe file is valid and wine is properly configured.")
+           if exe_path_obj.suffix.lower() == '.exe':
+               print("Check that the .exe file is valid and wine is properly configured.")
+           else:
+               print("Check that the file has execute permissions and is a valid executable.")
            sys.exit(1)
 
        # Wait for game to initialize
