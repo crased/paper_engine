@@ -14,8 +14,11 @@ python-dotenv>=1.0.0
 # YAML parsing for config
 PyYAML>=6.0
 
-# Annotation platform
-label-studio>=1.9.0
+# Annotation platform (install separately to avoid dependency conflicts)
+# label-studio>=1.9.0
+# Install with: pip install label-studio
+# Note: Label Studio has complex dependencies that can cause pip backtracking.
+# It's recommended to install it separately after other dependencies.
 
 # ============================================================
 # TRAINING DEPENDENCIES (Optional - for YOLO model training)
@@ -62,17 +65,24 @@ opencv-python>=4.8.0
 # INSTALLATION INSTRUCTIONS
 # ============================================================
 #
-# Full installation (all features):
-#   pip install -r requirements.txt
+# Recommended installation (avoids label-studio dependency conflicts):
+#   1. Install core + optional dependencies:
+#      pip install -r requirements.txt
+#   2. Install Label Studio separately:
+#      pip install label-studio
 #
-# Core only (no training, no AI):
-#   pip install pynput python-dotenv PyYAML label-studio
+# Minimal installation options:
+# Core only (no training, no AI, no annotation):
+#   pip install pynput python-dotenv PyYAML
 #
 # Core + Training (no AI):
-#   pip install pynput python-dotenv PyYAML label-studio ultralytics torch torchvision
+#   pip install pynput python-dotenv PyYAML ultralytics torch torchvision
 #
 # Core + Google Gemini AI (free tier):
-#   pip install pynput python-dotenv PyYAML label-studio google-generativeai
+#   pip install pynput python-dotenv PyYAML google-generativeai
+#
+# Then add Label Studio for annotation:
+#   pip install label-studio
 #
 # Note: main.py will auto-detect and offer to install missing packages
 #

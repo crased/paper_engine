@@ -62,7 +62,8 @@ Paper Engine will automatically detect and offer to install missing dependencies
 
 **Core dependencies:**
 ```bash
-pip install pynput python-dotenv pyyaml label-studio
+pip install pynput python-dotenv pyyaml
+# Label Studio installed separately (see below)
 ```
 
 **Optional (for model training):**
@@ -103,13 +104,17 @@ pip install openai     # For GPT models
    **Option B: Manual installation**
 
    ```bash
-   # Full installation (all features):
-   pip install -r requirements.txt
+   # Install core and optional dependencies:
+   pip install -r information/requirements.txt
+
+   # Then install Label Studio separately (to avoid dependency conflicts):
+   pip install label-studio
 
    # Or install only what you need:
-   # Core only: pip install pynput python-dotenv PyYAML label-studio
+   # Core only: pip install pynput python-dotenv PyYAML
    # Add training: pip install ultralytics torch torchvision
    # Add AI (free): pip install google-generativeai
+   # Add annotation: pip install label-studio
    ```
 
 4. **Add your game**
