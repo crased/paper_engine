@@ -69,6 +69,11 @@ def delete_last_screenshot(screenshots_dir="screenshots"):
        print("No screenshots found to delete.")
        return False
 
+   # Skip deletion if only one screenshot exists
+   if len(screenshot_files) == 1:
+       print("Only one screenshot exists, skipping deletion.")
+       return False
+
    # Sort by filename (contains timestamp: screenshot_YYYYMMDD_HHMMSS.png)
    # This is more reliable than modification time
    screenshot_files.sort()
