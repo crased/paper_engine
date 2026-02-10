@@ -35,8 +35,27 @@ Currently tested with Cuphead, but designed to work with any game executable.
 - **Python**: 3.8+
 
 ### Python Dependencies
+
+Paper Engine will automatically detect and offer to install missing dependencies on first run.
+
+**Core dependencies:**
 ```bash
-pip install ultralytics label-studio label-studio-sdk pynput torch torchvision anthropic python-dotenv
+pip install pynput Pillow mss python-dotenv pyyaml label-studio
+```
+
+**Optional (for model training):**
+```bash
+pip install ultralytics torch
+```
+
+**Optional (for AI bot generation - choose one or more):**
+```bash
+# Google Gemini (Default - Free tier available)
+pip install google-generativeai
+
+# Advanced models (paid API keys required)
+pip install anthropic  # For Claude AI
+pip install openai     # For GPT models
 ```
 
 ## Setup
@@ -54,18 +73,67 @@ pip install ultralytics label-studio label-studio-sdk pynput torch torchvision a
    ```
 
 3. **Install dependencies**
-   ```bash
-   pip install ultralytics label-studio label-studio-sdk pynput torch torchvision anthropic python-dotenv
-   ```
+
+   Dependencies will be automatically detected on first run. Paper Engine will prompt you to install missing packages.
 
 4. **Add your game**
    - Place a Windows `.exe` game file in the `game/` directory
 
-5. **Configure API key** (for AI features)
-   - Run `python main.py` once to auto-generate `.env` file
-   - Edit `.env` and replace `your-api-key-here` with your API key
-   - For Anthropic: Get your key at https://console.anthropic.com/settings/keys
-   - Configure LLM provider in `conf/main_conf.ini` (default: anthropic)
+5. **Configure AI API key** (optional - for bot generation features)
+
+   > **⚠️ API KEY SECURITY WARNING**
+   >
+   > - **NEVER share your API key** with anyone
+   > - **NEVER commit your `.env` file** to git/version control
+   > - **NEVER push API keys** to GitHub or any public repository
+   > - **Create separate API keys** for each project/environment
+   > - **Immediately revoke and regenerate** if your key is exposed
+   >
+   > Your API key is linked to your billing account. Exposed keys can lead to unauthorized usage and charges.
+
+   **Default: Google Gemini (Free Tier)**
+
+   Paper Engine uses Google Gemini by default, which offers a generous free tier:
+
+   ```bash
+   # Get a free API key:
+   # 1. Visit https://aistudio.google.com/apikey
+   # 2. Click "Create API Key"
+   # 3. Copy your key
+   ```
+
+   Then configure:
+   ```bash
+   # Run main.py to auto-generate .env file
+   python main.py
+
+   # Edit .env and add your Google API key
+   nano .env  # or use any text editor
+   # Add: API_KEY=your-google-api-key-here
+   ```
+
+   **Optional: Use Advanced Models**
+
+   For more powerful AI capabilities, you can switch to paid models:
+
+   | Provider | Model | Cost | API Key |
+   |----------|-------|------|---------|
+   | **Google** | Gemini 2.0 Flash | **Free tier** | [Get key](https://aistudio.google.com/apikey) |
+   | Anthropic | Claude Opus/Sonnet | Paid | [Get key](https://console.anthropic.com/settings/keys) |
+   | OpenAI | GPT-4/GPT-3.5 | Paid | [Get key](https://platform.openai.com/api-keys) |
+
+   To switch providers:
+   ```bash
+   # Edit conf/main_conf.ini
+   nano conf/main_conf.ini
+
+   # Change the [LLM] section:
+   [LLM]
+   llm_provider = anthropic  # or: openai, google
+   llm_model = claude-opus-4-5-20251101  # or: gpt-4, gemini-2.0-flash-exp
+
+   # Then update your API_KEY in .env with the new provider's key
+   ```
 
 ## Usage
 
@@ -147,7 +215,8 @@ paper_engine/
 - Output: `runs/detect/paper_engine_model/weights/best.pt`
 
 ### AI Bot Generation
-Uses Claude Opus AI to:
+
+Uses AI (default: Google Gemini - free tier) to:
 1. Search web for game keyboard/mouse controls
 2. Generate complete Python bot scripts with:
    - YOLO model inference
@@ -155,6 +224,8 @@ Uses Claude Opus AI to:
    - Decision-making logic
    - Game control via pynput
    - Emergency stop (ESC)
+
+Supports multiple LLM providers: Google Gemini (free), Anthropic Claude (paid), OpenAI GPT (paid)
 
 ## Known Issues & Limitations
 
@@ -171,10 +242,35 @@ Uses Claude Opus AI to:
 
 ## Security Notes
 
-- API keys stored in `.env` (never committed to git)
-- `.env` auto-generated on first run
-- Never share or commit your API keys
+### API Key Protection
+
+**CRITICAL: Protect Your API Keys**
+
+- ✅ API keys stored in `.env` file (automatically excluded from git)
+- ✅ `.env` auto-generated on first run with placeholder
+- ❌ **NEVER share your API keys** with anyone
+- ❌ **NEVER commit `.env` to version control** (git, GitHub, etc.)
+- ❌ **NEVER push or branch repositories** containing real API keys
+- ❌ **NEVER hardcode API keys** in source code
+
+**If your API key is exposed:**
+1. Immediately revoke the key in your provider's console
+2. Generate a new API key
+3. Update your `.env` file with the new key
+4. If pushed to git: Use `git filter-branch` or BFG Repo-Cleaner to remove from history
+
+**Best Practices:**
+- Use separate API keys for development and production
+- Set usage limits in your provider's console
+- Monitor your API usage regularly
+- Review `.gitignore` to ensure `.env` is excluded
+- Rotate API keys periodically
+
+### Other Security
+
 - Review generated bot scripts before running
+- Wine executes with your user privileges - only run trusted game executables
+- Be cautious with games from unknown sources
 
 ## Testing
 
@@ -199,5 +295,6 @@ This is an experimental project. Contributions welcome, but expect breaking chan
 
 - Uses [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
 - Uses [Label Studio](https://labelstud.io/) for annotation
-- Uses [Claude AI](https://claude.ai) for controls search and bot generation
+- Uses [Google Gemini AI](https://ai.google.dev/) (default, free tier) for controls search and bot generation
+- Optional support for [Anthropic Claude](https://claude.ai) and [OpenAI GPT](https://openai.com) models
 - Tested with Cuphead by Studio MDHR

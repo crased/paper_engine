@@ -17,10 +17,25 @@ def create_env_file_if_missing():
         print("\nNo .env file found. Creating one...")
         with open(env_path, 'w') as f:
             f.write("# Paper Engine - Environment Variables\n")
-            f.write("# Get your API key at: https://console.anthropic.com/settings/keys\n\n")
-            f.write("ANTHROPIC_API_KEY=your-api-key-here\n")
+            f.write("# Default: Google Gemini (Free tier available)\n")
+            f.write("# Get your free API key at: https://aistudio.google.com/apikey\n\n")
+            f.write("API_KEY=your-api-key-here\n\n")
+            f.write("# Optional: Switch to advanced models\n")
+            f.write("# Anthropic Claude: https://console.anthropic.com/settings/keys\n")
+            f.write("# OpenAI GPT: https://platform.openai.com/api-keys\n")
+            f.write("# Configure provider in conf/main_conf.ini [LLM] section\n")
         print(f"✓ Created .env file at: {env_path.absolute()}")
-        print("\nPlease edit .env and add your Anthropic API key, then run this script again.")
+        print("\n" + "="*60)
+        print("API KEY SETUP")
+        print("="*60)
+        print("\nDefault: Google Gemini (FREE)")
+        print("  1. Visit: https://aistudio.google.com/apikey")
+        print("  2. Click 'Create API Key'")
+        print("  3. Copy your key")
+        print(f"  4. Edit {env_path.absolute()} and replace 'your-api-key-here'")
+        print("\nOptional: Use advanced models (Anthropic/OpenAI)")
+        print("  - See README.md for instructions")
+        print("="*60)
         return False
     return True
 
