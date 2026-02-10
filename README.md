@@ -59,7 +59,7 @@ Paper Engine will automatically detect and offer to install missing dependencies
 
 **Core dependencies:**
 ```bash
-pip install pynput Pillow python-dotenv pyyaml label-studio
+pip install pynput python-dotenv pyyaml label-studio
 ```
 
 **Optional (for model training):**
@@ -104,7 +104,7 @@ pip install openai     # For GPT models
    pip install -r requirements.txt
 
    # Or install only what you need:
-   # Core only: pip install pynput Pillow python-dotenv PyYAML label-studio
+   # Core only: pip install pynput python-dotenv PyYAML label-studio
    # Add training: pip install ultralytics torch torchvision
    # Add AI (free): pip install google-generativeai
    ```
