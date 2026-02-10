@@ -87,9 +87,16 @@ Press **ESC** to stop the bot.
 - **Developer Guide:** See [CLAUDE.md](CLAUDE.md)
 - **Issues:** https://github.com/crased/paper_engine/issues
 
-## Security Warning
+## Security Warnings
 
-⚠️ **NEVER share your API key or commit .env to git!**
+⚠️ **API Key Security:**
+- **NEVER share your API key or commit .env to git!**
+
+⚠️ **Executable Security:**
+- **ONLY run games from trusted sources** (Steam, GOG, official stores)
+- Paper Engine executes .exe, .sh, .py files with your user privileges
+- **NEVER place untrusted scripts in the game/ directory**
+- Malicious scripts could compromise your system
 
 See [README.md - Security Notes](README.md#security-notes) for comprehensive security guidelines.
 

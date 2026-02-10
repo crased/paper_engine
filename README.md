@@ -342,11 +342,36 @@ Supports multiple LLM providers: Google Gemini (free), Anthropic Claude (paid), 
 - Review `.gitignore` to ensure `.env` is excluded
 - Rotate API keys periodically
 
-### Other Security
+### Executable Security
 
-- Review generated bot scripts before running
-- Wine executes with your user privileges - only run trusted game executables
-- Be cautious with games from unknown sources
+**CRITICAL: Code Execution Risks**
+
+Paper Engine executes game files with your user privileges. This includes:
+- **Windows .exe files** via Wine
+- **Shell scripts (.sh)** via bash
+- **Python scripts (.py)** via python interpreter
+- **Native Linux executables** with direct execution
+
+⚠️ **Security Warnings:**
+- ❌ **NEVER run games/executables from untrusted sources**
+- ❌ **NEVER place unknown scripts in the game/ directory**
+- ❌ **ALWAYS verify game files before running Paper Engine**
+- ✅ **Only use games from legitimate sources** (Steam, GOG, official stores)
+- ✅ **Review any .sh or .py files** before placing them in game/
+- ✅ **Ensure your game/ directory is secure** and not world-writable
+
+**Potential Risks:**
+- Malicious scripts could access your files, install malware, or compromise your system
+- Shell scripts and Python scripts execute with full user permissions
+- Games can read/write files, make network connections, and execute system commands
+
+**Best Practices:**
+- Only download games from trusted, official sources
+- Inspect any custom scripts before adding them to game/
+- Run Paper Engine in a limited user account or virtual machine for untrusted games
+- Keep backups of important data
+- Monitor game/ directory for unexpected files
+- Review generated bot scripts before running them
 
 ## Troubleshooting
 

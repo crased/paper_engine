@@ -48,7 +48,7 @@ def get_title(game_path):
    # Fallback: use directory name
    return game_path_obj.name
 def path_finder(game_path):
-   game_path = Path("game/")
+   game_path = Path("game/").resolve()  # Resolve to absolute path
    # You may have to change games x permissions level to continue.
    if not game_path.exists():
      print(f"Game folder '{game_path}' not found!")
@@ -61,19 +61,35 @@ def path_finder(game_path):
    # 4. Files with execute permission (Linux native executables)
    executable_files = []
 
+   # Security: Validate that all found files are within game/ directory
+   def is_safe_path(file_path):
+       """Ensure file is within game/ directory (prevent symlink attacks)."""
+       try:
+           resolved = file_path.resolve()
+           return resolved.is_relative_to(game_path)
+       except (ValueError, OSError):
+           return False
+
    # Find .exe files
-   executable_files.extend(game_path.rglob("*.exe"))
+   for exe in game_path.rglob("*.exe"):
+       if is_safe_path(exe):
+           executable_files.append(exe)
 
    # Find .sh scripts
-   executable_files.extend(game_path.rglob("*.sh"))
+   for sh in game_path.rglob("*.sh"):
+       if is_safe_path(sh):
+           executable_files.append(sh)
 
    # Find .py scripts
-   executable_files.extend(game_path.rglob("*.py"))
+   for py in game_path.rglob("*.py"):
+       if is_safe_path(py):
+           executable_files.append(py)
 
    # Find Linux native executables (files with execute permission, no extension)
    for file in game_path.rglob("*"):
        if file.is_file() and os.access(file, os.X_OK) and not file.suffix:
-           executable_files.append(file)
+           if is_safe_path(file):
+               executable_files.append(file)
 
    if not executable_files:
        print("No game executables found in game folder.")

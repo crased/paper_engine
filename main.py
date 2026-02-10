@@ -303,20 +303,52 @@ def main():
            # Determine launch method based on file type
            exe_path_obj = Path(exe_path)
 
+           # Security check: Validate file is within game/ directory
+           game_dir = Path("game/").resolve()
+           try:
+               resolved_path = exe_path_obj.resolve()
+               if not resolved_path.is_relative_to(game_dir):
+                   print(f"\nSECURITY ERROR: File is outside game/ directory: {exe_path}")
+                   print("This could be a symlink attack. Only run files within game/")
+                   sys.exit(1)
+           except (ValueError, OSError) as e:
+               print(f"\nSECURITY ERROR: Cannot validate file path: {e}")
+               sys.exit(1)
+
+           # Security check: Ensure file is readable and exists
+           if not exe_path_obj.exists():
+               print(f"\nERROR: Game file does not exist: {exe_path}")
+               sys.exit(1)
+
+           if not os.access(exe_path_obj, os.R_OK):
+               print(f"\nERROR: Cannot read game file: {exe_path}")
+               print("Check file permissions.")
+               sys.exit(1)
+
            if exe_path_obj.suffix.lower() == '.exe':
                # Windows executable - use Wine
                game_process = subprocess.Popen(["wine", "explorer", f"/desktop=game,{config.WINE_DESKTOP_RESOLUTION}", str(exe_path)])
                print(f"\nStarting game via Wine: {exe_path}")
            elif exe_path_obj.suffix.lower() == '.sh':
-               # Shell script - use bash
+               # Shell script - use bash (warn if not executable)
+               if not os.access(exe_path_obj, os.X_OK):
+                   print(f"\n⚠️  WARNING: Script is not marked as executable: {exe_path}")
+                   print(f"Consider running: chmod +x {exe_path}")
                game_process = subprocess.Popen(["bash", str(exe_path)])
                print(f"\nStarting game script: {exe_path}")
            elif exe_path_obj.suffix.lower() == '.py':
-               # Python script - use python
+               # Python script - use python (warn if not executable)
+               if not os.access(exe_path_obj, os.X_OK):
+                   print(f"\n⚠️  WARNING: Script is not marked as executable: {exe_path}")
+                   print(f"Consider running: chmod +x {exe_path}")
                game_process = subprocess.Popen(["python", str(exe_path)])
                print(f"\nStarting Python game: {exe_path}")
            else:
                # Native Linux executable - launch directly
+               if not os.access(exe_path_obj, os.X_OK):
+                   print(f"\nERROR: File is not executable: {exe_path}")
+                   print(f"Run: chmod +x {exe_path}")
+                   sys.exit(1)
                game_process = subprocess.Popen([str(exe_path)])
                print(f"\nStarting native game: {exe_path}")
 
