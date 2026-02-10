@@ -28,6 +28,17 @@ Paper Engine automates the complete pipeline for creating game bots:
 
 Currently tested with Cuphead, but designed to work with any game executable.
 
+## Features
+
+- **Annotation**: Label Studio integration for annotating game objects in captured screenshots
+- **AI-Generated Bot Scripts**: AI searches for game controls and generates Python bot scripts with YOLO inference
+- **Configurable Screenshot Capture**: Automated gameplay capture with configurable intervals via flameshot
+
+## Future Features
+
+- Video training datasets
+- Bot script repository for sharing game scripts
+
 ## Requirements
 
 > **⚠️ PLATFORM SUPPORT:**
