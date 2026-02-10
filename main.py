@@ -19,7 +19,59 @@ import os
 import time
 import sys
 import shutil
+import configparser
 from conf.config_parser import main_conf as config
+
+def update_llm_config(provider):
+    """Update conf/main_conf.ini with chosen LLM provider and default model.
+
+    Args:
+        provider: LLM package name ('anthropic', 'openai', or 'google-generativeai')
+    """
+    config_file = Path(__file__).parent / "conf" / "main_conf.ini"
+
+    # Map package names to provider names and default models
+    provider_map = {
+        'anthropic': {
+            'provider': 'anthropic',
+            'model': 'claude-sonnet-4-5-20250514'
+        },
+        'openai': {
+            'provider': 'openai',
+            'model': 'gpt-4'
+        },
+        'google-generativeai': {
+            'provider': 'google',
+            'model': 'gemini-2.0-flash-exp'
+        }
+    }
+
+    if provider not in provider_map:
+        print(f"⚠️  Unknown provider: {provider}, config not updated")
+        return
+
+    try:
+        parser = configparser.ConfigParser()
+        parser.read(config_file)
+
+        # Update LLM section
+        if not parser.has_section('LLM'):
+            parser.add_section('LLM')
+
+        parser.set('LLM', 'llm_provider', provider_map[provider]['provider'])
+        parser.set('LLM', 'llm_model', provider_map[provider]['model'])
+
+        # Preserve max_tokens_search if it exists
+        if not parser.has_option('LLM', 'max_tokens_search'):
+            parser.set('LLM', 'max_tokens_search', '4096')
+
+        # Write back to file
+        with open(config_file, 'w') as f:
+            parser.write(f)
+
+        print(f"✓ Updated config: {provider_map[provider]['provider']} / {provider_map[provider]['model']}")
+    except Exception as e:
+        print(f"⚠️  Could not update config file: {e}")
 
 def check_python_packages():
     """Check if required Python packages are installed.
@@ -207,14 +259,21 @@ def validate_dependencies():
         choice = input("\nEnter choice (1-5): ").strip()
 
         llm_to_install = []
+        selected_provider = None  # Track which single provider was chosen
+
         if choice == "1" and 'anthropic' in missing_llm:
             llm_to_install = ['anthropic']
+            selected_provider = 'anthropic'
         elif choice == "2" and 'openai' in missing_llm:
             llm_to_install = ['openai']
+            selected_provider = 'openai'
         elif choice == "3" and 'google-generativeai' in missing_llm:
             llm_to_install = ['google-generativeai']
+            selected_provider = 'google-generativeai'
         elif choice == "4":
             llm_to_install = missing_llm
+            # For "all providers", default to anthropic
+            selected_provider = 'anthropic' if 'anthropic' in missing_llm else missing_llm[0]
         elif choice == "5":
             print("Skipping LLM packages. Bot generation will not be available.")
         else:
@@ -225,8 +284,43 @@ def validate_dependencies():
             for pkg in llm_to_install:
                 install_python_package(pkg)
             print("\n✓ LLM packages installation complete!")
+
+            # Update config to match the chosen provider
+            if selected_provider:
+                update_llm_config(selected_provider)
     elif has_llm_provider:
         print(f"\n✓ LLM provider already installed: {', '.join(installed_llm)}")
+
+        # Check if config matches installed provider
+        # Priority: anthropic > openai > google
+        primary_provider = None
+        if 'anthropic' in installed_llm:
+            primary_provider = 'anthropic'
+        elif 'openai' in installed_llm:
+            primary_provider = 'openai'
+        elif 'google-generativeai' in installed_llm:
+            primary_provider = 'google-generativeai'
+
+        # Verify config matches
+        if primary_provider:
+            provider_map = {
+                'anthropic': 'anthropic',
+                'openai': 'openai',
+                'google-generativeai': 'google'
+            }
+            expected_provider = provider_map[primary_provider]
+
+            # Read current config
+            try:
+                from conf.config_parser import main_conf
+                current_provider = main_conf.get('LLM_PROVIDER', '')
+
+                if current_provider != expected_provider:
+                    print(f"⚠️  Config mismatch: installed={primary_provider}, config={current_provider}")
+                    print(f"   Updating config to match installed provider...")
+                    update_llm_config(primary_provider)
+            except Exception as e:
+                print(f"⚠️  Could not verify config: {e}")
 
     # Handle missing system tools
     if missing_tools:

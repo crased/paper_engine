@@ -205,15 +205,20 @@ pip install ultralytics      # For YOLO training (Step 3)
    | Anthropic | Claude Opus/Sonnet | Paid | [Get key](https://console.anthropic.com/settings/keys) |
    | OpenAI | GPT-4/GPT-3.5 | Paid | [Get key](https://platform.openai.com/api-keys) |
 
-   To switch providers:
+   **When you first run Paper Engine**, it will prompt you to choose an LLM provider and automatically update `conf/main_conf.ini` with your choice.
+
+   To manually switch providers later:
    ```bash
-   # Edit conf/main_conf.ini
+   # Option 1: Reinstall with a different provider
+   ./paperengine  # Choose a different LLM when prompted
+
+   # Option 2: Manually edit conf/main_conf.ini
    nano conf/main_conf.ini
 
    # Change the [LLM] section:
    [LLM]
    llm_provider = anthropic  # or: openai, google
-   llm_model = claude-opus-4-5-20251101  # or: gpt-4, gemini-2.0-flash-exp
+   llm_model = claude-sonnet-4-5-20250514  # or: gpt-4, gemini-2.0-flash-exp
 
    # Then update your API_KEY in .env with the new provider's key
    ```
