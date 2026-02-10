@@ -24,17 +24,34 @@ cd paper_engine
 
 ### 2. Add Your Game
 
-**Option A: Copy entire game folder**
-```bash
-cp -r /path/to/Cuphead/ game/
-```
+Paper Engine supports Windows, Shell, Python, and native Linux games.
 
-**Option B: Symlink (saves space)**
+**Windows Games (.exe via Wine):**
 ```bash
+# Option A: Copy entire folder (includes DLLs)
+cp -r /path/to/Cuphead/ game/
+
+# Option B: Symlink (saves space)
 ln -s /path/to/Cuphead game/Cuphead
 ```
+⚠️ Need the **entire folder**, not just .exe (games need DLLs)
 
-⚠️ You need the **entire game folder**, not just the .exe (games need their DLL files)
+**Shell Script Games (.sh):**
+```bash
+cp /path/to/game.sh game/
+chmod +x game/game.sh
+```
+
+**Python Games (.py):**
+```bash
+cp /path/to/game.py game/
+```
+
+**Native Linux Games:**
+```bash
+cp /path/to/game game/
+chmod +x game/game
+```
 
 ### 3. Run Paper Engine
 

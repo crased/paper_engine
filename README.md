@@ -116,19 +116,51 @@ pip install ultralytics      # For YOLO training (Step 3)
 
 4. **Add your game**
 
-   **Important:** You need the entire game folder (with all DLLs), not just the .exe
+   Paper Engine supports multiple game types. Choose the method that matches your game:
 
-   **Option A: Copy (simple, uses disk space)**
+   **For Windows Games (.exe files via Wine):**
+
+   ⚠️ **Important:** You need the entire game folder (with all DLLs), not just the .exe
+
+   **Option A: Copy entire folder**
    ```bash
+   # Copy entire game directory
    cp -r /path/to/Cuphead/ game/
+   # Result: game/Cuphead/ with all files
    ```
 
    **Option B: Symlink (recommended, saves space)**
    ```bash
+   # Create symlink to game installation
    ln -s /path/to/Cuphead game/Cuphead
+   # Result: game/Cuphead/ pointing to original location
    ```
 
-   Both create `game/Cuphead/` with all files. The script auto-detects the .exe inside.
+   **For Shell Script Games (.sh files):**
+   ```bash
+   # Copy or move your shell script
+   cp /path/to/mygame.sh game/
+   # Make sure it's executable
+   chmod +x game/mygame.sh
+   ```
+
+   **For Python Games (.py files):**
+   ```bash
+   # Copy or move your Python game
+   cp /path/to/mygame.py game/
+   # Optionally mark as executable
+   chmod +x game/mygame.py
+   ```
+
+   **For Native Linux Games (no extension):**
+   ```bash
+   # Copy the executable
+   cp /path/to/mygame game/
+   # Ensure it has execute permissions
+   chmod +x game/mygame
+   ```
+
+   The script will auto-detect executables in the `game/` directory and let you choose if multiple are found.
 
 5. **Configure AI API key** (optional - for bot generation features)
 
@@ -403,6 +435,45 @@ ln -s /path/to/Cuphead game/Cuphead
 
 Games like Cuphead (Unity games) need their DLL files and data folders to run.
 The symlink creates a pointer to your game installation without copying.
+
+### Script/executable won't launch: "Permission denied"
+Your shell script or native executable needs execute permissions:
+
+```bash
+# For shell scripts
+chmod +x game/mygame.sh
+
+# For native Linux executables
+chmod +x game/mygame
+
+# Check permissions
+ls -la game/
+# Should show: -rwxr-xr-x (x = executable)
+```
+
+### Python game won't launch: "python: command not found"
+Install Python or try `python3`:
+
+```bash
+# Install Python 3
+sudo apt install python3        # Ubuntu/Debian
+sudo pacman -S python          # Arch
+sudo dnf install python3       # Fedora
+
+# Or edit main.py to use python3 instead of python
+```
+
+### No game executables found
+Make sure your game is in the `game/` directory:
+
+```bash
+# Check what's in the game folder
+ls -la game/
+
+# For Windows games: Need entire folder with .exe
+# For scripts: Need .sh or .py file
+# For native: Need executable file with proper permissions
+```
 
 ### Missing system tools (Linux only)
 
