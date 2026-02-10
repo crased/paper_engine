@@ -1,6 +1,6 @@
 # Paper Engine
 
-> **🚀 Quick Start:** New to Paper Engine? See [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide!
+> **🚀 Quick Start:** New to Paper Engine? See [QUICKSTART.md](information/QUICKSTART.md) for a 5-minute setup guide!
 
 > **⚠️ DISCLAIMER: WORK IN PROGRESS**
 >
