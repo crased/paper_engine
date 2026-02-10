@@ -162,10 +162,10 @@ pip install openai     # For GPT models
 ### Quick Start
 
 ```bash
-./run.sh
+./paperengine
 ```
 
-The run script will automatically:
+The script will automatically:
 - Create virtual environment if missing
 - Activate the environment
 - Offer to install dependencies

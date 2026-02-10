@@ -32,10 +32,10 @@ cp /path/to/your/game.exe game/
 ### 3. Run Paper Engine
 
 ```bash
-./run.sh
+./paperengine
 ```
 
-That's it! The run script handles everything else automatically.
+That's it! The script handles everything else automatically.
 
 ## What Happens Next?
 
@@ -82,10 +82,10 @@ Press **ESC** to stop the bot.
 
 ## Troubleshooting
 
-### "Permission denied: ./run.sh"
+### "Permission denied: ./paperengine"
 ```bash
-chmod +x run.sh
-./run.sh
+chmod +x paperengine
+./paperengine
 ```
 
 ### "python not found"
