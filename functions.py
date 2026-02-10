@@ -34,18 +34,40 @@ def get_title(game_path):
    return title
 def path_finder(game_path):
    game_path = Path("game/")
-#you may have to change games x permisions level to continue.
+   # You may have to change games x permissions level to continue.
    if not game_path.exists():
      print(f"Game folder '{game_path}' not found!")
-     return None   
-   
-   exe_files = list(game_path.glob("*.exe"))
-   
+     return None
+
+   # Recursively find all .exe files in game/ directory and subdirectories
+   exe_files = list(game_path.rglob("*.exe"))
+
    if not exe_files:
        print("No .exe files found in game folder.")
        return None
-   exe_path = exe_files[0]
-   return exe_path # Assuming the first .exe file is the game executables
+
+   # If only one .exe found, auto-select it
+   if len(exe_files) == 1:
+       return exe_files[0]
+
+   # If multiple .exe files, let user choose
+   print("\nMultiple game executables found:")
+   for idx, exe in enumerate(exe_files, 1):
+       print(f"  {idx}) {exe}")
+
+   while True:
+       try:
+           choice = input(f"\nSelect game (1-{len(exe_files)}): ").strip()
+           selected_idx = int(choice) - 1
+           if 0 <= selected_idx < len(exe_files):
+               return exe_files[selected_idx]
+           else:
+               print(f"Please enter a number between 1 and {len(exe_files)}")
+       except ValueError:
+           print("Please enter a valid number")
+       except KeyboardInterrupt:
+           print("\nCancelled.")
+           return None
 
 def delete_last_screenshot(screenshots_dir="screenshots"):
    """Delete the most recent screenshot from the screenshots directory.
