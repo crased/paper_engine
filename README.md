@@ -74,7 +74,21 @@ pip install openai     # For GPT models
 
 3. **Install dependencies**
 
+   **Option A: Automatic installation (recommended)**
+
    Dependencies will be automatically detected on first run. Paper Engine will prompt you to install missing packages.
+
+   **Option B: Manual installation**
+
+   ```bash
+   # Full installation (all features):
+   pip install -r requirements.txt
+
+   # Or install only what you need:
+   # Core only: pip install pynput Pillow mss python-dotenv PyYAML label-studio
+   # Add training: pip install ultralytics torch torchvision
+   # Add AI (free): pip install google-generativeai
+   ```
 
 4. **Add your game**
    - Place a Windows `.exe` game file in the `game/` directory
