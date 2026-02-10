@@ -369,6 +369,66 @@ def main():
    else:
        print("Skipping model testing.")
 
+   # --- Step 4: Search for game controls (optional) ---
+   time.sleep(0.5)
+   choice = input("\nSearch for game controls using AI? (Y/N): ").strip().upper()
+   if choice == "Y":
+       from generate_bot_script import search_game_controls, save_controls_to_config
+
+       print(f"\nSearching web for {game_title} controls...")
+       controls_info = search_game_controls(game_title)
+
+       if controls_info:
+           config_path = save_controls_to_config(game_title, game_path, controls_info)
+           print(f"\n✓ Controls saved to: {config_path}")
+           print("\nControls Preview:")
+           print("-" * 60)
+           print(controls_info[:500] + "..." if len(controls_info) > 500 else controls_info)
+           print("-" * 60)
+       else:
+           print("\n✗ Failed to retrieve game controls")
+           print("  You can manually create a controls config file in conf/")
+   else:
+       print("Skipping controls search.")
+
+   # --- Step 5: Generate bot script (optional) ---
+   time.sleep(0.5)
+   choice = input("\nGenerate AI bot script? (Y/N): ").strip().upper()
+   if choice == "Y":
+       from generate_bot_script import generate_bot_script, save_bot_script, read_controls_from_config
+
+       # Try to read controls from config
+       print(f"\nReading controls configuration for {game_title}...")
+       controls_info = read_controls_from_config(game_title)
+
+       if not controls_info:
+           print("\n⚠️  No controls configuration found!")
+           print("   You need to run Step 4 (Search for game controls) first.")
+           print("   Or manually create a controls config in conf/")
+       else:
+           print("✓ Controls loaded")
+           print("\nGenerating Python bot script...")
+           print("This may take 1-2 minutes...\n")
+
+           script_code = generate_bot_script(game_title, controls_info)
+
+           if script_code:
+               script_path = save_bot_script(game_title, script_code)
+               print(f"\n" + "="*60)
+               print("✓ BOT SCRIPT GENERATED SUCCESSFULLY!")
+               print("="*60)
+               print(f"Script saved to: {script_path}")
+               print(f"\nTo run your bot:")
+               print(f"  1. Start {game_title}")
+               print(f"  2. Run: python {script_path}")
+               print(f"  3. Press ESC to stop the bot")
+               print("="*60)
+           else:
+               print("\n✗ Failed to generate bot script")
+               print("  Check your API key configuration in .env")
+   else:
+       print("Skipping bot generation.")
+
 
 
 
