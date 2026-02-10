@@ -323,12 +323,12 @@ def main():
        # Wait for game to initialize
        time.sleep(config.GAME_INITIALIZATION_WAIT)
 
-       # Detect game window geometry once after init
+       # Detect game window geometry once after init (Sway only)
        window_geometry = find_wine_window()
        if window_geometry:
-           print(f"Locked onto game window: {window_geometry}")
+           print(f"✓ Locked onto game window: {window_geometry}")
        else:
-           print("Could not detect game window, falling back to full screen capture.")
+           print("✓ Using full screen capture mode")
 
        # Step 1.5: Screenshot loop — runs while game is active
        screenshots_dir = create_screenshots_directory()

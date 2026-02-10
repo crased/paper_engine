@@ -40,8 +40,15 @@ def find_wine_window():
     """
     Find the Wine game window using swaymsg (for Wayland/sway).
     Returns the window rect coordinates in "WxH+x+y" format or None if not found.
+    Note: Only works on Sway window manager. Returns None on other systems.
     """
     try:
+        # Check if swaymsg is available
+        result = subprocess.run(['which', 'swaymsg'], capture_output=True, text=True)
+        if result.returncode != 0:
+            # Not on Sway, silently return None for full screen capture
+            return None
+
         result = subprocess.run(
             ['swaymsg', '-t', 'get_tree'],
             capture_output=True,
@@ -69,8 +76,8 @@ def find_wine_window():
             return None
 
         return search_windows(tree)
-    except Exception as e:
-        print(f"Warning: Could not find Wine window: {e}")
+    except Exception:
+        # Silently fail and use full screen capture
         return None
 
 def take_screenshot(directory, window_geometry=None):

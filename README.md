@@ -114,7 +114,10 @@ pip install ultralytics      # For YOLO training (Step 3)
    ```
 
 4. **Add your game**
-   - Place a Windows `.exe` game file in the `game/` directory
+   - **Important:** Copy the entire game folder (with all DLLs), not just the .exe
+   - Many games (like Unity games) need their DLLs and data folders to run
+   - Example: Copy the whole `Cuphead/` folder into `game/Cuphead/`
+   - The script will auto-detect the .exe file inside
 
 5. **Configure AI API key** (optional - for bot generation features)
 
@@ -347,6 +350,17 @@ Try `python3` instead:
 ```bash
 python3 main.py
 ```
+
+### Game won't launch: "Library [DLL] not found"
+You need to copy the entire game folder, not just the .exe:
+```bash
+# Wrong: Just copying .exe
+cp /path/to/game/Game.exe game/
+
+# Correct: Copy entire game folder
+cp -r /path/to/game/ game/
+```
+Games like Cuphead (Unity games) need their DLL files and data folders to run.
 
 ### Missing system tools (Linux only)
 
