@@ -13,7 +13,7 @@
 >
 > **Use at your own risk. This is a research/educational project.**
 
-A game automation and computer vision framework that combines Wine game execution, screenshot capture, Label Studio annotation, and YOLO object detection to build intelligent game bots.
+A game automation and computer vision framework that combines Wine game execution, screenshot capture, Label Studio annotation, and YOLO object detection to build intelligent game bots. Designed for bug detection, exploit identification, automated testing, and game development research.
 
 ## What It Does
 
@@ -28,6 +28,37 @@ Paper Engine automates the complete pipeline for creating game bots:
 
 Supports Windows games (.exe via Wine), Linux native executables, shell scripts (.sh), and Python games (.py).
 Currently tested with Cuphead, but designed to work with any game executable.
+
+## Use Cases
+
+Paper Engine is designed for legitimate game testing, research, and development:
+
+### 1. **Bug & Exploit Detection** (Primary Use Case)
+- **Automated Testing**: Train bots to repeatedly test game mechanics and boundary conditions
+- **Glitch Discovery**: Detect visual anomalies, clipping issues, and rendering bugs through object detection
+- **Exploit Identification**: Identify unintended game behaviors and sequence breaks
+- **Regression Testing**: Verify bug fixes by automating reproduction steps
+- **QA Automation**: Supplement manual testing with automated gameplay coverage
+
+### 2. **Game Development & QA**
+- Automated playtesting for indie developers
+- Performance testing under various gameplay scenarios
+- Balance testing for game mechanics
+
+### 3. **AI & Computer Vision Research**
+- Game state recognition and object detection
+- Reinforcement learning for game AI
+- Educational tool for teaching computer vision concepts
+
+### 4. **Speedrunning & Optimization**
+- Route optimization and strategy testing
+- Frame-perfect input analysis
+- Glitch documentation for speedrunning communities
+
+**Note:** This tool is intended for **single-player games** and **authorized testing only**. Do not use for:
+- Multiplayer games or competitive advantage
+- Violating game terms of service
+- Unauthorized exploitation of online games
 
 ## Features
 

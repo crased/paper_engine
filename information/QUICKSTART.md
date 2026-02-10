@@ -2,6 +2,9 @@
 
 Get up and running in 5 minutes!
 
+**What is Paper Engine?**
+An automated testing and computer vision framework for games. Primary uses: bug detection, exploit identification, automated QA, and game development research.
+
 > **⚠️ LINUX ONLY:** Paper Engine currently only works on Linux. Windows and macOS are not supported.
 
 ## Prerequisites
