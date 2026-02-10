@@ -4,8 +4,13 @@ Get up and running in 5 minutes!
 
 ## Prerequisites
 
+> **⚠️ LINUX ONLY:** Paper Engine currently only works on Linux. Windows and macOS are not supported.
+
+- **Linux OS** (tested on Arch with Wayland)
 - **Python 3.8+** installed
 - **Git** installed
+- **Wine** installed (for running Windows games)
+- **Flameshot** installed (for screenshots)
 - **Game .exe file** ready
 
 ## Installation
@@ -26,14 +31,8 @@ cp /path/to/your/game.exe game/
 
 ### 3. Run Paper Engine
 
-**Linux/Mac:**
 ```bash
 ./run.sh
-```
-
-**Windows:**
-```cmd
-run.bat
 ```
 
 That's it! The run script handles everything else automatically.
@@ -113,7 +112,7 @@ sudo dnf install flameshot   # Fedora
 
 Manual install:
 ```bash
-source env/bin/activate  # or: env\Scripts\activate.bat on Windows
+source env/bin/activate
 pip install -r requirements.txt
 ```
 

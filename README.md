@@ -30,9 +30,15 @@ Currently tested with Cuphead, but designed to work with any game executable.
 
 ## Requirements
 
+> **⚠️ PLATFORM SUPPORT:**
+> Paper Engine currently **only works on Linux**. The workflow hardcodes Wine for game execution and uses Wayland/Sway-specific window detection.
+> **Windows and macOS are NOT supported** and will not work without significant code modifications.
+
 ### System Requirements
 - **OS**: Linux (tested on Arch Linux with Wayland)
-- **Wine**: For running Windows executables
+  - **Windows**: ❌ Not supported (requires Wine code removal)
+  - **macOS**: ❌ Not supported
+- **Wine**: For running Windows game executables on Linux
 - **flameshot**: For screenshot capture on Linux/Wayland
 - **Python**: 3.8+
 
@@ -155,17 +161,11 @@ pip install openai     # For GPT models
 
 ### Quick Start
 
-**Linux/Mac:**
 ```bash
 ./run.sh
 ```
 
-**Windows:**
-```cmd
-run.bat
-```
-
-The run scripts will automatically:
+The run script will automatically:
 - Create virtual environment if missing
 - Activate the environment
 - Offer to install dependencies
@@ -175,9 +175,7 @@ The run scripts will automatically:
 
 ```bash
 # Activate virtual environment
-source env/bin/activate  # Linux/Mac
-# or
-env\Scripts\activate.bat  # Windows
+source env/bin/activate
 
 # Run Paper Engine
 python main.py
