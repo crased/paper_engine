@@ -29,19 +29,51 @@ def check_python_packages():
     """
     results = {}
 
-    # Check pynput
-    try:
-        import pynput
-        results['pynput'] = (True, None)
-    except ImportError as e:
-        results['pynput'] = (False, str(e))
+    # Core dependencies (always required)
+    core_packages = {
+        'pynput': 'pynput',
+        'PIL': 'Pillow',
+        'mss': 'mss',
+        'dotenv': 'python-dotenv',
+        'yaml': 'pyyaml',
+    }
 
-    # Check PIL (Pillow)
-    try:
-        import PIL
-        results['PIL'] = (True, None)
-    except ImportError as e:
-        results['PIL'] = (False, str(e))
+    # Optional: YOLO training dependencies
+    training_packages = {
+        'ultralytics': 'ultralytics',
+        'torch': 'torch',
+    }
+
+    # Optional: LLM provider dependencies (user chooses which)
+    llm_packages = {
+        'anthropic': 'anthropic',
+        'openai': 'openai',
+        'google.generativeai': 'google-generativeai',
+    }
+
+    # Check core packages
+    for import_name, pip_name in core_packages.items():
+        try:
+            __import__(import_name)
+            results[pip_name] = (True, None)
+        except ImportError as e:
+            results[pip_name] = (False, str(e))
+
+    # Check training packages
+    for import_name, pip_name in training_packages.items():
+        try:
+            __import__(import_name)
+            results[pip_name] = (True, None)
+        except ImportError as e:
+            results[pip_name] = (False, str(e))
+
+    # Check LLM packages
+    for import_name, pip_name in llm_packages.items():
+        try:
+            __import__(import_name)
+            results[pip_name] = (True, None)
+        except ImportError as e:
+            results[pip_name] = (False, str(e))
 
     return results
 
@@ -63,10 +95,34 @@ def check_system_tools():
 
     return results
 
+def install_python_package(package):
+    """Install a Python package using pip.
+
+    Args:
+        package: Package name to install
+
+    Returns:
+        bool: True if installation succeeded, False otherwise
+    """
+    print(f"\n  Installing {package}...")
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'pip', 'install', package],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"  ✓ {package} installed successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"  ✗ Failed to install {package}: {e}")
+        return False
+
 def validate_dependencies():
     """Comprehensive dependency check at startup.
 
     Collects all missing dependencies and reports them together.
+    Offers to install missing Python packages.
 
     Returns:
         bool: True if all dependencies are met, False otherwise
@@ -74,23 +130,101 @@ def validate_dependencies():
     python_packages = check_python_packages()
     system_tools = check_system_tools()
 
-    missing_packages = [pkg for pkg, (installed, _) in python_packages.items() if not installed]
+    # Categorize missing packages
+    core_packages = ['pynput', 'Pillow', 'mss', 'python-dotenv', 'pyyaml']
+    training_packages = ['ultralytics', 'torch']
+    llm_packages = ['anthropic', 'openai', 'google-generativeai']
+
+    missing_core = [pkg for pkg in core_packages if pkg in python_packages and not python_packages[pkg][0]]
+    missing_training = [pkg for pkg in training_packages if pkg in python_packages and not python_packages[pkg][0]]
+    missing_llm = [pkg for pkg in llm_packages if pkg in python_packages and not python_packages[pkg][0]]
     missing_tools = [tool for tool, (found, _) in system_tools.items() if not found]
 
-    if not missing_packages and not missing_tools:
+    # If everything is installed, we're good
+    if not missing_core and not missing_training and not missing_llm and not missing_tools:
         return True
 
-    # Print comprehensive error message
-    print("\nERROR: Missing required dependencies:\n")
+    print("\n" + "="*60)
+    print("DEPENDENCY CHECK")
+    print("="*60)
 
-    if missing_packages:
-        print("Python packages:")
-        for pkg in missing_packages:
-            print(f"  - {pkg}: pip install {pkg if pkg != 'PIL' else 'Pillow'}")
-        print()
+    # Handle missing core packages
+    if missing_core:
+        print("\n⚠️  Missing CORE dependencies (required):")
+        for pkg in missing_core:
+            print(f"  - {pkg}")
 
+        choice = input("\nInstall missing core packages? (Y/N): ").strip().upper()
+        if choice == "Y":
+            print("\nInstalling core packages...")
+            failed = []
+            for pkg in missing_core:
+                if not install_python_package(pkg):
+                    failed.append(pkg)
+
+            if failed:
+                print(f"\n✗ Failed to install: {', '.join(failed)}")
+                print("Please install these manually and try again.")
+                return False
+            print("\n✓ Core packages installed successfully!")
+        else:
+            print("\nCannot proceed without core dependencies.")
+            return False
+
+    # Handle missing training packages
+    if missing_training:
+        print("\n⚠️  Missing TRAINING dependencies (optional for YOLO training):")
+        for pkg in missing_training:
+            print(f"  - {pkg}")
+
+        choice = input("\nInstall training packages? (Y/N): ").strip().upper()
+        if choice == "Y":
+            print("\nInstalling training packages (this may take a while)...")
+            for pkg in missing_training:
+                install_python_package(pkg)
+            print("\n✓ Training packages installation complete!")
+        else:
+            print("Skipping training packages. YOLO training will not be available.")
+
+    # Handle missing LLM packages
+    if missing_llm:
+        print("\n⚠️  Missing LLM provider dependencies (optional for bot generation):")
+        print("  - anthropic (Claude)")
+        print("  - openai (GPT)")
+        print("  - google-generativeai (Gemini)")
+
+        print("\nWhich LLM providers do you want to install?")
+        print("  1) Anthropic (Claude) - Recommended")
+        print("  2) OpenAI (GPT)")
+        print("  3) Google (Gemini)")
+        print("  4) All providers")
+        print("  5) Skip LLM installation")
+
+        choice = input("\nEnter choice (1-5): ").strip()
+
+        llm_to_install = []
+        if choice == "1" and 'anthropic' in missing_llm:
+            llm_to_install = ['anthropic']
+        elif choice == "2" and 'openai' in missing_llm:
+            llm_to_install = ['openai']
+        elif choice == "3" and 'google-generativeai' in missing_llm:
+            llm_to_install = ['google-generativeai']
+        elif choice == "4":
+            llm_to_install = missing_llm
+        elif choice == "5":
+            print("Skipping LLM packages. Bot generation will not be available.")
+        else:
+            print("Invalid choice. Skipping LLM installation.")
+
+        if llm_to_install:
+            print(f"\nInstalling LLM packages: {', '.join(llm_to_install)}...")
+            for pkg in llm_to_install:
+                install_python_package(pkg)
+            print("\n✓ LLM packages installation complete!")
+
+    # Handle missing system tools
     if missing_tools:
-        print("System tools:")
+        print("\n⚠️  Missing SYSTEM tools:")
         for tool in missing_tools:
             if tool == 'wine':
                 print(f"  - wine:")
@@ -104,10 +238,16 @@ def validate_dependencies():
                 print("      Fedora: sudo dnf install flameshot")
             elif tool == 'label-studio':
                 print(f"  - label-studio: pip install label-studio")
-        print()
+                if input("\nInstall label-studio? (Y/N): ").strip().upper() == "Y":
+                    install_python_package('label-studio')
 
-    print("Please install missing dependencies and try again.")
-    return False
+        print("\nPlease install missing system tools and restart the program.")
+        return False
+
+    print("\n" + "="*60)
+    print("✓ All required dependencies are installed!")
+    print("="*60)
+    return True
 
 def main():
    # Validate all dependencies at startup
