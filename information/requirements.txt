@@ -1,24 +1,11 @@
 # Paper Engine v1.0 - Python Dependencies
-# Complete end-to-end pipeline for AI-powered game bot development
 
 # ============================================================
-# QUICK INSTALL (Copy and paste - choose ONE LLM provider):
+# CORE DEPENDENCIES ONLY
 # ============================================================
-#
-# Core + Google Gemini (FREE):
-# pip install pynput python-dotenv PyYAML google-generativeai && pip install label-studio && pip install ultralytics
-#
-# Core + Anthropic Claude (Paid):
-# pip install pynput python-dotenv PyYAML anthropic && pip install label-studio && pip install ultralytics
-#
-# Core + OpenAI GPT (Paid):
-# pip install pynput python-dotenv PyYAML openai && pip install label-studio && pip install ultralytics
-#
-# ============================================================
-
-# ============================================================
-# CORE DEPENDENCIES (Required)
-# ============================================================
+# This file contains only the core dependencies that install quickly.
+# The script will prompt you to install LLM providers interactively.
+# Heavy packages (label-studio, ultralytics) should be installed manually.
 
 # Keyboard and mouse control
 pynput>=1.7.6
@@ -29,72 +16,30 @@ python-dotenv>=1.0.0
 # YAML parsing for config
 PyYAML>=6.0
 
-# Annotation platform (install separately to avoid dependency conflicts)
-# label-studio>=1.9.0
-# Install with: pip install label-studio
-# Note: Label Studio has complex dependencies that can cause pip backtracking.
-# It's recommended to install it separately after other dependencies.
-
-# ============================================================
-# TRAINING DEPENDENCIES (Optional - for YOLO model training)
-# Install separately to avoid dependency conflicts
-# ============================================================
-
-# YOLO object detection
-# ultralytics>=8.0.0
-# Install with: pip install ultralytics
-
-# PyTorch deep learning framework
-# torch>=2.0.0
-# torchvision>=0.15.0
-# Note: PyTorch is automatically installed as a dependency of ultralytics
-
-# ============================================================
-# AI/LLM DEPENDENCIES (Optional - for bot generation)
-# Choose one or more providers
-# ============================================================
-
-# Google Gemini (Default - FREE TIER AVAILABLE)
-# Get free API key: https://aistudio.google.com/apikey
-google-generativeai>=0.3.0
-
-# Anthropic Claude (Paid)
-# Get API key: https://console.anthropic.com/settings/keys
-anthropic>=0.18.0
-
-# OpenAI GPT (Paid)
-# Get API key: https://platform.openai.com/api-keys
-openai>=1.12.0
-
-# ============================================================
-# ADDITIONAL DEPENDENCIES
-# ============================================================
-
-# NumPy and OpenCV are automatically installed with ultralytics
-# No need to install them separately
-
 # ============================================================
 # INSTALLATION INSTRUCTIONS
 # ============================================================
 #
-# Use the QUICK INSTALL commands above (recommended)
-# OR install step-by-step:
+# 1. Install core dependencies (fast):
+#    pip install -r information/requirements.txt
 #
-# 1. Install core:
-#    pip install pynput python-dotenv PyYAML
+# 2. Run Paper Engine - it will prompt you to install an LLM provider:
+#    ./paperengine
+#    (The script will detect missing LLM and offer installation)
 #
-# 2. Install ONE LLM provider:
-#    pip install google-generativeai  # Free tier (recommended)
-#    OR
-#    pip install anthropic            # Claude (paid)
-#    OR
-#    pip install openai               # GPT (paid)
+# 3. Manually install heavy packages when needed:
+#    pip install label-studio    # For annotation (Step 2)
+#    pip install ultralytics      # For YOLO training (Step 3)
 #
-# 3. Install optional tools separately:
-#    pip install label-studio         # For annotation
-#    pip install ultralytics          # For YOLO training (includes torch)
+# ============================================================
+# LLM PROVIDERS (installed by script when you choose one)
+# ============================================================
 #
-# Note: main.py will auto-detect and offer to install missing packages
+# google-generativeai>=0.3.0  # Free tier (recommended)
+# anthropic>=0.18.0           # Claude (paid)
+# openai>=1.12.0              # GPT (paid)
+#
+# The script will ask which provider you want and install it automatically.
 #
 # ============================================================
 # SYSTEM REQUIREMENTS

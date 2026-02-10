@@ -60,33 +60,21 @@ Currently tested with Cuphead, but designed to work with any game executable.
 
 Paper Engine will automatically detect and offer to install missing dependencies on first run.
 
-**Quick install command (recommended - choose ONE LLM provider):**
+**Core dependencies (required):**
 ```bash
-# Google Gemini (FREE tier - recommended):
-pip install pynput python-dotenv pyyaml google-generativeai && pip install label-studio && pip install ultralytics
-
-# OR Anthropic Claude (Paid):
-pip install pynput python-dotenv pyyaml anthropic && pip install label-studio && pip install ultralytics
-
-# OR OpenAI GPT (Paid):
-pip install pynput python-dotenv pyyaml openai && pip install label-studio && pip install ultralytics
+pip install pynput python-dotenv pyyaml
 ```
 
-**Or install separately:**
+**LLM providers (installed by script when you choose one):**
+- The script will detect missing LLM and prompt you to install one
+- Google Gemini (free tier) - Recommended
+- Anthropic Claude (paid)
+- OpenAI GPT (paid)
+
+**Heavy packages (install manually when needed):**
 ```bash
-# Core only
-pip install pynput python-dotenv pyyaml
-
-# Add AI providers (choose one or more)
-pip install google-generativeai  # Free tier
-pip install anthropic            # Claude (paid)
-pip install openai               # GPT (paid)
-
-# Add annotation tool
-pip install label-studio
-
-# Add YOLO training
-pip install ultralytics  # Includes torch, numpy, opencv
+pip install label-studio    # For annotation (Step 2)
+pip install ultralytics      # For YOLO training (Step 3)
 ```
 
 ## Setup
@@ -105,19 +93,24 @@ pip install ultralytics  # Includes torch, numpy, opencv
 
 3. **Install dependencies**
 
-   **Option A: Automatic installation (recommended)**
-
-   Dependencies will be automatically detected on first run. Paper Engine will prompt you to install missing packages.
-
-   **Option B: Manual installation**
+   **Option A: Automatic (recommended)**
 
    ```bash
-   # Install from requirements file (LLM providers only):
+   # Just run Paper Engine - it will prompt you to install missing packages
+   ./paperengine
+   ```
+
+   **Option B: Manual**
+
+   ```bash
+   # Install core dependencies
    pip install -r information/requirements.txt
 
-   # Then install tools separately (to avoid dependency conflicts):
+   # Install heavy packages manually when needed:
    pip install label-studio    # For annotation
    pip install ultralytics      # For YOLO training
+
+   # LLM provider will be installed by the script when you choose one
    ```
 
 4. **Add your game**
