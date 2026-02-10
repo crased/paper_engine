@@ -254,6 +254,16 @@ def main():
    if not validate_dependencies():
        sys.exit(1)
 
+   # Welcome message
+   print("\n" + "="*60)
+   print("          PAPER ENGINE - Pre-Release v1.0")
+   print("="*60)
+   print("\nThank you for using Paper Engine!")
+   print("This is a pre-release version - feedback is appreciated.")
+   print("\nPaper Engine: Game automation and computer vision toolkit")
+   print("Repository: https://github.com/crased/paper_engine")
+   print("\n" + "="*60 + "\n")
+
    # Set up environment for Label Studio
    env = os.environ.copy()
    env.update(config.LABEL_STUDIO_ENV)
