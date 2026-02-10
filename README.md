@@ -401,6 +401,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Acknowledgments
 
+- Uses [Flameshot](https://flameshot.org/) for screenshot capture on Linux
 - Uses [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
 - Uses [Label Studio](https://labelstud.io/) for annotation
 - Uses [Google Gemini AI](https://ai.google.dev/) (default, free tier) for controls search and bot generation
