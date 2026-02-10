@@ -91,8 +91,9 @@ def take_screenshot(directory, window_geometry=None):
               print(f"✓ Screenshot (flameshot, window): {filename}")
           else:
               # Use flameshot for full screen
-              cmd = ' '.join(config.FLAMESHOT_COMMAND) + f' > "{filepath}"'
-              subprocess.run(cmd, check=True, shell=True)
+              # SECURITY: Use shell=False and redirect stdout via Python file handle
+              with open(filepath, 'wb') as f:
+                  subprocess.run(config.FLAMESHOT_COMMAND, stdout=f, check=True)
               print(f"✓ Screenshot (flameshot): {filename}")
           return str(filepath)
        except Exception as e:
