@@ -21,6 +21,21 @@ def create_screenshots_directory():
         print(f"Created '{directory}' directory")
     return directory
 
+def check_screenshot_tool():
+    """
+    Check which screenshot tool is available on the system.
+    Returns the preferred tool name or None if none are available.
+    """
+    tools = ['flameshot', 'scrot', 'import']  # Priority order
+    for tool in tools:
+        try:
+            result = subprocess.run(['which', tool], capture_output=True, text=True)
+            if result.returncode == 0:
+                return tool
+        except Exception:
+            continue
+    return None
+
 def find_wine_window():
     """
     Find the Wine game window using swaymsg (for Wayland/sway).
@@ -82,6 +97,10 @@ def take_screenshot(directory, window_geometry=None):
        except Exception as e:
           print(f"Error taking screenshot: {e}")
     else:
+       # Try flameshot first (default), then fall back to alternatives
+       screenshot_taken = False
+
+       # Try flameshot
        try:
           # Check if we should capture a specific window
           if config.CAPTURE_WINDOW_ONLY and window_geometry:
@@ -95,6 +114,36 @@ def take_screenshot(directory, window_geometry=None):
               with open(filepath, 'wb') as f:
                   subprocess.run(config.FLAMESHOT_COMMAND, stdout=f, check=True)
               print(f"✓ Screenshot (flameshot): {filename}")
+          screenshot_taken = True
           return str(filepath)
-       except Exception as e:
-        print(f"Error taking screenshot: {e}")
+       except (FileNotFoundError, subprocess.CalledProcessError) as e:
+          print(f"⚠️  Flameshot failed: {e}")
+          print("Trying alternative screenshot tool...")
+
+       # Fall back to scrot if flameshot failed
+       if not screenshot_taken:
+           try:
+               cmd = ['scrot', filepath]
+               subprocess.run(cmd, check=True)
+               print(f"✓ Screenshot (scrot): {filename}")
+               screenshot_taken = True
+               return str(filepath)
+           except (FileNotFoundError, subprocess.CalledProcessError):
+               print("⚠️  scrot not available or failed")
+
+       # Fall back to ImageMagick import if scrot failed
+       if not screenshot_taken:
+           try:
+               cmd = ['import', '-window', 'root', filepath]
+               subprocess.run(cmd, check=True)
+               print(f"✓ Screenshot (ImageMagick): {filename}")
+               screenshot_taken = True
+               return str(filepath)
+           except (FileNotFoundError, subprocess.CalledProcessError):
+               print("⚠️  ImageMagick import not available or failed")
+
+       # If all tools failed
+       if not screenshot_taken:
+           print("✗ Error: No screenshot tool available (tried: flameshot, scrot, ImageMagick)")
+           print("Install one with: sudo apt install flameshot  OR  sudo apt install scrot")
+           return None

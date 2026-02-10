@@ -50,7 +50,10 @@ Currently tested with Cuphead, but designed to work with any game executable.
   - **Windows**: ❌ Not supported (requires Wine code removal)
   - **macOS**: ❌ Not supported
 - **Wine**: For running Windows game executables on Linux
-- **flameshot**: For screenshot capture on Linux/Wayland
+- **Screenshot tool**: One of the following (flameshot recommended)
+  - `flameshot` (default, best for Wayland)
+  - `scrot` (fallback)
+  - `imagemagick` (fallback, provides `import` command)
 - **Python**: 3.8+
 
 ### Python Dependencies
@@ -352,10 +355,21 @@ sudo apt install wine         # Ubuntu/Debian
 sudo pacman -S wine          # Arch
 sudo dnf install wine        # Fedora
 
-# Install Flameshot (for screenshots)
+# Install screenshot tool (choose one, flameshot recommended)
+# Flameshot (default, best for Wayland)
 sudo apt install flameshot    # Ubuntu/Debian
 sudo pacman -S flameshot     # Arch
 sudo dnf install flameshot   # Fedora
+
+# OR scrot (alternative)
+sudo apt install scrot        # Ubuntu/Debian
+sudo pacman -S scrot         # Arch
+sudo dnf install scrot       # Fedora
+
+# OR ImageMagick (alternative)
+sudo apt install imagemagick  # Ubuntu/Debian
+sudo pacman -S imagemagick   # Arch
+sudo dnf install imagemagick # Fedora
 ```
 
 ### Dependencies not installing

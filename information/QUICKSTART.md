@@ -10,7 +10,7 @@ Get up and running in 5 minutes!
 - **Python 3.8+** installed
 - **Git** installed
 - **Wine** installed (for running Windows games)
-- **Flameshot** installed (for screenshots)
+- **Screenshot tool** installed (flameshot recommended, or scrot/imagemagick)
 - **Game .exe file** ready
 
 ## Installation

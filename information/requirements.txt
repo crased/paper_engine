@@ -82,7 +82,10 @@ opencv-python>=4.8.0
 #
 # Linux:
 #   - wine: sudo apt install wine (for Windows game execution)
-#   - flameshot: sudo apt install flameshot (for screenshots)
+#   - screenshot tool (choose one):
+#       - flameshot (recommended): sudo apt install flameshot
+#       - scrot (alternative): sudo apt install scrot
+#       - imagemagick (alternative): sudo apt install imagemagick
 #
 # Windows:
 #   - No additional system tools needed
