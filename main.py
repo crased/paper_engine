@@ -12,7 +12,7 @@
 #after screengrab time == 500.
 #return screengrab to footage folder.
 from screencapture import take_screenshot, create_screenshots_directory, find_wine_window
-from functions import launch_label_studio, get_title, path_finder
+from functions import launch_label_studio, get_title, path_finder, delete_last_screenshot
 from pathlib import Path
 import subprocess
 import os
@@ -183,7 +183,12 @@ def main():
            take_screenshot(screenshots_dir, window_geometry)
 
        imgs_after = len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])
-       print(f"\nGame process ended. Added {imgs_after - imgs_before} images. Total: {imgs_after}")
+
+       # Delete the last screenshot (most recent)
+       delete_last_screenshot(screenshots_dir)
+
+       imgs_final = len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])
+       print(f"\nGame process ended. Added {imgs_final - imgs_before} images. Total: {imgs_final}")
    else:
        print("Skipping game launch.")
 

@@ -2,6 +2,8 @@ import os
 import sys
 from pathlib import Path
 from google import genai
+from anthropic import Anthropic
+from openai import OpenAI
 from dotenv import load_dotenv
 from functions import get_title
 from conf.config_parser import main_conf as config
