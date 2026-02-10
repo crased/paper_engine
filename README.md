@@ -69,6 +69,7 @@ Paper Engine is designed for legitimate game testing, research, and development:
 
 ## Future Features
 
+- Notification/ping when screenshot soft limit is reached (audio alert or system notification)
 - Screen recording of bot actions (record bot gameplay for analysis/demonstration)
 - Video training datasets
 - Bot script repository for sharing game scripts
