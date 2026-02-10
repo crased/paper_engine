@@ -2,6 +2,21 @@
 # Complete end-to-end pipeline for AI-powered game bot development
 
 # ============================================================
+# QUICK INSTALL (Copy and paste - choose ONE LLM provider):
+# ============================================================
+#
+# Core + Google Gemini (FREE):
+# pip install pynput python-dotenv PyYAML google-generativeai && pip install label-studio && pip install ultralytics
+#
+# Core + Anthropic Claude (Paid):
+# pip install pynput python-dotenv PyYAML anthropic && pip install label-studio && pip install ultralytics
+#
+# Core + OpenAI GPT (Paid):
+# pip install pynput python-dotenv PyYAML openai && pip install label-studio && pip install ultralytics
+#
+# ============================================================
+
+# ============================================================
 # CORE DEPENDENCIES (Required)
 # ============================================================
 
@@ -22,14 +37,17 @@ PyYAML>=6.0
 
 # ============================================================
 # TRAINING DEPENDENCIES (Optional - for YOLO model training)
+# Install separately to avoid dependency conflicts
 # ============================================================
 
 # YOLO object detection
-ultralytics>=8.0.0
+# ultralytics>=8.0.0
+# Install with: pip install ultralytics
 
 # PyTorch deep learning framework
-torch>=2.0.0
-torchvision>=0.15.0
+# torch>=2.0.0
+# torchvision>=0.15.0
+# Note: PyTorch is automatically installed as a dependency of ultralytics
 
 # ============================================================
 # AI/LLM DEPENDENCIES (Optional - for bot generation)
@@ -52,37 +70,29 @@ openai>=1.12.0
 # ADDITIONAL DEPENDENCIES
 # ============================================================
 
-# JSON processing (usually built-in, but explicit for clarity)
-# Already included in Python standard library
-
-# NumPy (required by ultralytics and torch)
-numpy>=1.24.0
-
-# OpenCV for image operations (required by ultralytics)
-opencv-python>=4.8.0
+# NumPy and OpenCV are automatically installed with ultralytics
+# No need to install them separately
 
 # ============================================================
 # INSTALLATION INSTRUCTIONS
 # ============================================================
 #
-# Recommended installation (avoids label-studio dependency conflicts):
-#   1. Install core + optional dependencies:
-#      pip install -r requirements.txt
-#   2. Install Label Studio separately:
-#      pip install label-studio
+# Use the QUICK INSTALL commands above (recommended)
+# OR install step-by-step:
 #
-# Minimal installation options:
-# Core only (no training, no AI, no annotation):
-#   pip install pynput python-dotenv PyYAML
+# 1. Install core:
+#    pip install pynput python-dotenv PyYAML
 #
-# Core + Training (no AI):
-#   pip install pynput python-dotenv PyYAML ultralytics torch torchvision
+# 2. Install ONE LLM provider:
+#    pip install google-generativeai  # Free tier (recommended)
+#    OR
+#    pip install anthropic            # Claude (paid)
+#    OR
+#    pip install openai               # GPT (paid)
 #
-# Core + Google Gemini AI (free tier):
-#   pip install pynput python-dotenv PyYAML google-generativeai
-#
-# Then add Label Studio for annotation:
-#   pip install label-studio
+# 3. Install optional tools separately:
+#    pip install label-studio         # For annotation
+#    pip install ultralytics          # For YOLO training (includes torch)
 #
 # Note: main.py will auto-detect and offer to install missing packages
 #

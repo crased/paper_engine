@@ -60,25 +60,33 @@ Currently tested with Cuphead, but designed to work with any game executable.
 
 Paper Engine will automatically detect and offer to install missing dependencies on first run.
 
-**Core dependencies:**
+**Quick install command (recommended - choose ONE LLM provider):**
 ```bash
+# Google Gemini (FREE tier - recommended):
+pip install pynput python-dotenv pyyaml google-generativeai && pip install label-studio && pip install ultralytics
+
+# OR Anthropic Claude (Paid):
+pip install pynput python-dotenv pyyaml anthropic && pip install label-studio && pip install ultralytics
+
+# OR OpenAI GPT (Paid):
+pip install pynput python-dotenv pyyaml openai && pip install label-studio && pip install ultralytics
+```
+
+**Or install separately:**
+```bash
+# Core only
 pip install pynput python-dotenv pyyaml
-# Label Studio installed separately (see below)
-```
 
-**Optional (for model training):**
-```bash
-pip install ultralytics torch
-```
+# Add AI providers (choose one or more)
+pip install google-generativeai  # Free tier
+pip install anthropic            # Claude (paid)
+pip install openai               # GPT (paid)
 
-**Optional (for AI bot generation - choose one or more):**
-```bash
-# Google Gemini (Default - Free tier available)
-pip install google-generativeai
+# Add annotation tool
+pip install label-studio
 
-# Advanced models (paid API keys required)
-pip install anthropic  # For Claude AI
-pip install openai     # For GPT models
+# Add YOLO training
+pip install ultralytics  # Includes torch, numpy, opencv
 ```
 
 ## Setup
@@ -104,17 +112,12 @@ pip install openai     # For GPT models
    **Option B: Manual installation**
 
    ```bash
-   # Install core and optional dependencies:
+   # Install from requirements file (LLM providers only):
    pip install -r information/requirements.txt
 
-   # Then install Label Studio separately (to avoid dependency conflicts):
-   pip install label-studio
-
-   # Or install only what you need:
-   # Core only: pip install pynput python-dotenv PyYAML
-   # Add training: pip install ultralytics torch torchvision
-   # Add AI (free): pip install google-generativeai
-   # Add annotation: pip install label-studio
+   # Then install tools separately (to avoid dependency conflicts):
+   pip install label-studio    # For annotation
+   pip install ultralytics      # For YOLO training
    ```
 
 4. **Add your game**
