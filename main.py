@@ -481,10 +481,26 @@ def main():
        # Step 1.5: Screenshot loop — runs while game is active
        screenshots_dir = create_screenshots_directory()
        imgs_before = len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])
+       screenshots_taken = 0
+       SCREENSHOT_SOFT_LIMIT = 201
 
        while game_process.poll() is None:
            time.sleep(config.SCREENSHOT_INTERVAL)
            take_screenshot(screenshots_dir, window_geometry)
+           screenshots_taken += 1
+
+           # Soft stop at 201 screenshots
+           if screenshots_taken >= SCREENSHOT_SOFT_LIMIT:
+               print(f"\n⚠️  Reached {SCREENSHOT_SOFT_LIMIT} screenshots.")
+               print(f"Total screenshots in folder: {len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])}")
+               continue_choice = input("Continue capturing? (Y/N): ").strip().upper()
+               if continue_choice != "Y":
+                   print("Stopping screenshot capture. Closing game...")
+                   game_process.terminate()
+                   break
+               else:
+                   print("Continuing screenshot capture...")
+                   screenshots_taken = 0  # Reset counter for next batch
 
        imgs_after = len([f for f in os.listdir(screenshots_dir) if f.endswith('.png')])
 

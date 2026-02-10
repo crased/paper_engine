@@ -65,6 +65,7 @@ Paper Engine is designed for legitimate game testing, research, and development:
 - **Annotation**: Label Studio integration for annotating game objects in captured screenshots
 - **AI-Generated Bot Scripts**: AI searches for game controls and generates Python bot scripts with YOLO inference
 - **Configurable Screenshot Capture**: Automated gameplay capture with configurable intervals via flameshot
+- **Screenshot Soft Limit**: Automatically pauses at 201 screenshots and prompts to continue or stop
 
 ## Future Features
 
