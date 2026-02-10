@@ -114,10 +114,20 @@ pip install ultralytics      # For YOLO training (Step 3)
    ```
 
 4. **Add your game**
-   - **Important:** Copy the entire game folder (with all DLLs), not just the .exe
-   - Many games (like Unity games) need their DLLs and data folders to run
-   - Example: Copy the whole `Cuphead/` folder into `game/Cuphead/`
-   - The script will auto-detect the .exe file inside
+
+   **Important:** You need the entire game folder (with all DLLs), not just the .exe
+
+   **Option A: Copy (simple, uses disk space)**
+   ```bash
+   cp -r /path/to/Cuphead/ game/
+   ```
+
+   **Option B: Symlink (recommended, saves space)**
+   ```bash
+   ln -s /path/to/Cuphead game/Cuphead
+   ```
+
+   Both create `game/Cuphead/` with all files. The script auto-detects the .exe inside.
 
 5. **Configure AI API key** (optional - for bot generation features)
 
@@ -352,15 +362,21 @@ python3 main.py
 ```
 
 ### Game won't launch: "Library [DLL] not found"
-You need to copy the entire game folder, not just the .exe:
+You need the entire game folder, not just the .exe:
+
 ```bash
 # Wrong: Just copying .exe
-cp /path/to/game/Game.exe game/
+cp /path/to/Cuphead/Cuphead.exe game/
 
-# Correct: Copy entire game folder
-cp -r /path/to/game/ game/
+# Correct Option 1: Copy entire game folder
+cp -r /path/to/Cuphead/ game/
+
+# Correct Option 2: Symlink (saves space)
+ln -s /path/to/Cuphead game/Cuphead
 ```
+
 Games like Cuphead (Unity games) need their DLL files and data folders to run.
+The symlink creates a pointer to your game installation without copying.
 
 ### Missing system tools (Linux only)
 

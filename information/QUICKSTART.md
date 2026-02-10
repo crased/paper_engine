@@ -24,10 +24,17 @@ cd paper_engine
 
 ### 2. Add Your Game
 
+**Option A: Copy entire game folder**
 ```bash
-# Copy your game executable to the game/ directory
-cp /path/to/your/game.exe game/
+cp -r /path/to/Cuphead/ game/
 ```
+
+**Option B: Symlink (saves space)**
+```bash
+ln -s /path/to/Cuphead game/Cuphead
+```
+
+⚠️ You need the **entire game folder**, not just the .exe (games need their DLL files)
 
 ### 3. Run Paper Engine
 
