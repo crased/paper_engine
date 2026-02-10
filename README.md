@@ -1,5 +1,7 @@
 # Paper Engine
 
+> **🚀 Quick Start:** New to Paper Engine? See [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide!
+
 > **⚠️ DISCLAIMER: WORK IN PROGRESS**
 >
 > This project is currently under active development and is **NOT** production-ready. Expect:
@@ -151,10 +153,33 @@ pip install openai     # For GPT models
 
 ## Usage
 
-### Complete End-to-End Workflow
+### Quick Start
+
+**Linux/Mac:**
+```bash
+./run.sh
+```
+
+**Windows:**
+```cmd
+run.bat
+```
+
+The run scripts will automatically:
+- Create virtual environment if missing
+- Activate the environment
+- Offer to install dependencies
+- Launch Paper Engine
+
+### Manual Start
 
 ```bash
-source env/bin/activate
+# Activate virtual environment
+source env/bin/activate  # Linux/Mac
+# or
+env\Scripts\activate.bat  # Windows
+
+# Run Paper Engine
 python main.py
 ```
 
