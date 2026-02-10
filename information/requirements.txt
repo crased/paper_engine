@@ -11,9 +11,6 @@ pynput>=1.7.6
 # Image processing
 Pillow>=10.0.0
 
-# Screen capture
-mss>=9.0.1
-
 # Environment variable management
 python-dotenv>=1.0.0
 
@@ -72,13 +69,13 @@ opencv-python>=4.8.0
 #   pip install -r requirements.txt
 #
 # Core only (no training, no AI):
-#   pip install pynput Pillow mss python-dotenv PyYAML label-studio
+#   pip install pynput Pillow python-dotenv PyYAML label-studio
 #
 # Core + Training (no AI):
-#   pip install pynput Pillow mss python-dotenv PyYAML label-studio ultralytics torch torchvision
+#   pip install pynput Pillow python-dotenv PyYAML label-studio ultralytics torch torchvision
 #
 # Core + Google Gemini AI (free tier):
-#   pip install pynput Pillow mss python-dotenv PyYAML label-studio google-generativeai
+#   pip install pynput Pillow python-dotenv PyYAML label-studio google-generativeai
 #
 # Note: main.py will auto-detect and offer to install missing packages
 #
