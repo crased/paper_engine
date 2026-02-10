@@ -72,7 +72,7 @@ def take_screenshot(directory, window_geometry=None):
     filepath = os.path.join(directory, filename)
 
     if sys.platform == "win32":
-       from Pil import imageGrab
+       from PIL import ImageGrab
        try:
           # Capture the screen
           screenshot = ImageGrab.grab()

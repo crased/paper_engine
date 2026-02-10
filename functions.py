@@ -45,7 +45,49 @@ def path_finder(game_path):
        print("No .exe files found in game folder.")
        return None
    exe_path = exe_files[0]
-   return exe_path # Assuming the first .exe file is the game executables    
+   return exe_path # Assuming the first .exe file is the game executables
+
+def delete_last_screenshot(screenshots_dir="screenshots"):
+   """Delete the most recent screenshot from the screenshots directory.
+
+   Args:
+       screenshots_dir: Path to screenshots directory (default: "screenshots")
+
+   Returns:
+       bool: True if screenshot was deleted, False otherwise
+   """
+   screenshots_path = Path(screenshots_dir)
+
+   if not screenshots_path.exists():
+       print(f"Screenshots directory '{screenshots_dir}' not found!")
+       return False
+
+   # Get PNG files matching screenshot pattern
+   screenshot_files = list(screenshots_path.glob("screenshot_*.png"))
+
+   if not screenshot_files:
+       print("No screenshots found to delete.")
+       return False
+
+   # Sort by filename (contains timestamp: screenshot_YYYYMMDD_HHMMSS.png)
+   # This is more reliable than modification time
+   screenshot_files.sort()
+   last_screenshot = screenshot_files[-1]
+
+   # Delete the file
+   try:
+       last_screenshot.unlink()
+       print(f"✓ Deleted most recent screenshot: {last_screenshot.name}")
+       return True
+   except FileNotFoundError:
+       print(f"Screenshot file disappeared: {last_screenshot.name}")
+       return False
+   except PermissionError:
+       print(f"Permission denied deleting: {last_screenshot.name}")
+       return False
+   except Exception as e:
+       print(f"Unexpected error deleting screenshot: {e}")
+       return False
 
 
 
