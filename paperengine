@@ -32,7 +32,7 @@ if ! python -c "import pynput" 2>/dev/null; then
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         echo "Installing dependencies..."
-        pip install -r requirements.txt
+        pip install -r information/requirements.txt
         echo -e "${GREEN}✓ Dependencies installed${NC}"
         echo ""
     else
