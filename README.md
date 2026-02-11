@@ -69,6 +69,8 @@ Paper Engine is designed for legitimate game testing, research, and development:
 
 ## Future Features
 
+- Admin dashboard (web UI for monitoring bot performance, managing sessions, viewing metrics)
+- Data-driven semi self-improving bot scripts using LLM (bots that learn from gameplay data and refine their logic)
 - Notification/ping when screenshot soft limit is reached (audio alert or system notification)
 - Screen recording of bot actions (record bot gameplay for analysis/demonstration)
 - Video training datasets
