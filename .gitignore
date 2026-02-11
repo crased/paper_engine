@@ -38,6 +38,11 @@ todo.md
 commit.md
 CLAUDE.md
 .claude
+
+# Internal planning documents
+PROJECT_REPORT.md
+FEATURE_PRIORITY_ANALYSIS.md
+V1.5_ROADMAP.md
 # IDE
 .vscode/
 .idea/
