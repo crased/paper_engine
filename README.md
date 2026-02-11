@@ -67,7 +67,7 @@ Paper Engine is designed for legitimate game testing, research, and development:
 - **Configurable Screenshot Capture**: Automated gameplay capture with configurable intervals via flameshot
 - **Screenshot Soft Limit**: Automatically pauses at 201 screenshots and prompts to continue or stop
 
-## Future Features
+## To Be Implemented
 
 - Admin dashboard (web UI for monitoring bot performance, managing sessions, viewing metrics)
 - Data-driven semi self-improving bot scripts using LLM (bots that learn from gameplay data and refine their logic)
