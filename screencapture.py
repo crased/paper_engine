@@ -38,12 +38,16 @@ def check_screenshot_tool():
 
 def find_wine_window():
     """
-    Find the Wine game window using swaymsg (for Wayland/sway).
+    Find the Wine game window using swaymsg (for Wayland/sway on Linux).
     Returns the window rect coordinates in "WxH+x+y" format or None if not found.
-    Note: Only works on Sway window manager. Returns None on other systems.
+    Note: Only works on Linux Sway window manager. Returns None on macOS/Windows or other systems.
     """
+    # macOS and Windows don't support swaymsg - return None for full screen capture
+    if sys.platform in ("darwin", "win32"):
+        return None
+
     try:
-        # Check if swaymsg is available
+        # Check if swaymsg is available (Linux only)
         result = subprocess.run(['which', 'swaymsg'], capture_output=True, text=True)
         if result.returncode != 0:
             # Not on Sway, silently return None for full screen capture
@@ -93,7 +97,41 @@ def take_screenshot(directory, window_geometry=None):
     filename = f"screenshot_{timestamp}.png"
     filepath = os.path.join(directory, filename)
 
-    if sys.platform == "win32":
+    if sys.platform == "darwin":
+       # macOS - try flameshot first (cross-platform consistency), fallback to screencapture
+       screenshot_taken = False
+
+       # Try flameshot (same as Linux for consistency)
+       try:
+           if config.CAPTURE_WINDOW_ONLY and window_geometry:
+               # Use flameshot with region for window-specific capture
+               cmd = ['flameshot', 'gui', '--region', window_geometry, '-p', filepath]
+               subprocess.run(cmd, check=True)
+               print(f"✓ Screenshot (flameshot, window): {filename}")
+           else:
+               # Use flameshot for full screen
+               with open(filepath, 'wb') as f:
+                   subprocess.run(config.FLAMESHOT_COMMAND, stdout=f, check=True)
+               print(f"✓ Screenshot (flameshot): {filename}")
+           screenshot_taken = True
+           return str(filepath)
+       except (FileNotFoundError, subprocess.CalledProcessError) as e:
+           print(f"⚠️  Flameshot failed: {e}")
+           print("Falling back to native screencapture...")
+
+       # Fall back to native macOS screencapture
+       if not screenshot_taken:
+           try:
+               cmd = ['screencapture', '-x', filepath]  # -x: no sound
+               subprocess.run(cmd, check=True)
+               print(f"✓ Screenshot (macOS screencapture): {filename}")
+               return str(filepath)
+           except (FileNotFoundError, subprocess.CalledProcessError) as e:
+               print(f"✗ Error: All screenshot tools failed: {e}")
+               print("Install flameshot: brew install flameshot")
+               return None
+
+    elif sys.platform == "win32":
        from PIL import ImageGrab
        try:
           # Capture the screen
@@ -104,6 +142,7 @@ def take_screenshot(directory, window_geometry=None):
        except Exception as e:
           print(f"Error taking screenshot: {e}")
     else:
+       # Linux
        # Try flameshot first (default), then fall back to alternatives
        screenshot_taken = False
 

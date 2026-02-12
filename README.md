@@ -79,18 +79,20 @@ Paper Engine is designed for legitimate game testing, research, and development:
 ## Requirements
 
 > **⚠️ PLATFORM SUPPORT:**
-> Paper Engine currently **only works on Linux**. The workflow hardcodes Wine for game execution and uses Wayland/Sway-specific window detection.
-> **Windows and macOS are NOT supported** and will not work without significant code modifications.
+> Paper Engine supports **Linux and macOS**. Windows support is planned for future releases.
 
 ### System Requirements
-- **OS**: Linux (tested on Arch Linux with Wayland)
-  - **Windows**: ❌ Not supported (requires Wine code removal)
-  - **macOS**: ❌ Not supported
-- **Wine**: For running Windows game executables on Linux
-- **Screenshot tool**: One of the following (flameshot recommended)
-  - `flameshot` (default, best for Wayland)
-  - `scrot` (fallback)
-  - `imagemagick` (fallback, provides `import` command)
+- **OS**: Linux or macOS
+  - **Linux**: ✅ Fully supported (tested on Arch Linux with Wayland)
+  - **macOS**: ✅ Supported (uses native screencapture, Wine via Homebrew)
+  - **Windows**: ❌ Not supported yet (planned for future releases)
+- **Wine**: For running Windows game executables
+  - **Linux**: Install via package manager (`apt`, `pacman`, `dnf`)
+  - **macOS**: Install via Homebrew (`brew install wine-stable`)
+- **Screenshot tool**: Platform-specific (automatically detected)
+  - **Linux**: `flameshot` (recommended), `scrot` (fallback), or `imagemagick` (fallback)
+  - **macOS**: `flameshot` (recommended via Homebrew), native `screencapture` (built-in fallback)
+  - **Windows**: PIL/ImageGrab (not yet supported)
 - **Python**: 3.8+
 
 ### Python Dependencies
@@ -515,8 +517,9 @@ ls -la game/
 # For native: Need executable file with proper permissions
 ```
 
-### Missing system tools (Linux only)
+### Missing system tools
 
+**Linux:**
 ```bash
 # Install Wine (for running Windows games)
 sudo apt install wine         # Ubuntu/Debian
@@ -538,6 +541,19 @@ sudo dnf install scrot       # Fedora
 sudo apt install imagemagick  # Ubuntu/Debian
 sudo pacman -S imagemagick   # Arch
 sudo dnf install imagemagick # Fedora
+```
+
+**macOS:**
+```bash
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Wine (for running Windows games)
+brew install wine-stable
+
+# Install Flameshot (recommended for consistency with Linux)
+brew install flameshot
+# Note: Built-in 'screencapture' works as fallback if flameshot not installed
 ```
 
 ### Dependencies not installing

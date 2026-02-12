@@ -136,7 +136,18 @@ def check_system_tools():
         dict: {tool_name: (is_found: bool, path_or_error: str)}
     """
     results = {}
-    tools = ['wine', 'flameshot', 'label-studio']
+
+    # Platform-specific tools
+    if sys.platform == "darwin":
+        # macOS: wine, flameshot (recommended), label-studio
+        # Note: screencapture is built-in fallback
+        tools = ['wine', 'flameshot', 'label-studio']
+    elif sys.platform == "win32":
+        # Windows: label-studio only (no wine needed, screenshot built-in)
+        tools = ['label-studio']
+    else:
+        # Linux: all tools
+        tools = ['wine', 'flameshot', 'label-studio']
 
     for tool in tools:
         path = shutil.which(tool)
@@ -328,14 +339,22 @@ def validate_dependencies():
         for tool in missing_tools:
             if tool == 'wine':
                 print(f"  - wine:")
-                print("      Ubuntu/Debian: sudo apt install wine")
-                print("      Arch: sudo pacman -S wine")
-                print("      Fedora: sudo dnf install wine")
+                if sys.platform == "darwin":
+                    print("      macOS: brew install wine-stable")
+                    print("      Alternative: Install CrossOver or PlayOnMac")
+                else:
+                    print("      Ubuntu/Debian: sudo apt install wine")
+                    print("      Arch: sudo pacman -S wine")
+                    print("      Fedora: sudo dnf install wine")
             elif tool == 'flameshot':
-                print(f"  - flameshot:")
-                print("      Ubuntu/Debian: sudo apt install flameshot")
-                print("      Arch: sudo pacman -S flameshot")
-                print("      Fedora: sudo dnf install flameshot")
+                print(f"  - flameshot (screenshot tool):")
+                if sys.platform == "darwin":
+                    print("      macOS: brew install flameshot")
+                    print("      Note: Built-in screencapture works as fallback")
+                else:
+                    print("      Ubuntu/Debian: sudo apt install flameshot")
+                    print("      Arch: sudo pacman -S flameshot")
+                    print("      Fedora: sudo dnf install flameshot")
             elif tool == 'label-studio':
                 print(f"  - label-studio: pip install label-studio")
                 if input("\nInstall label-studio? (Y/N): ").strip().upper() == "Y":
@@ -443,9 +462,13 @@ def main():
            print(f"\nERROR: Executable or required tool not found: {e}")
            if exe_path_obj.suffix.lower() == '.exe':
                print("Install wine:")
-               print("  Ubuntu/Debian: sudo apt install wine")
-               print("  Arch: sudo pacman -S wine")
-               print("  Fedora: sudo dnf install wine")
+               if sys.platform == "darwin":
+                   print("  macOS: brew install wine-stable")
+                   print("  Alternative: Install CrossOver or PlayOnMac")
+               else:
+                   print("  Ubuntu/Debian: sudo apt install wine")
+                   print("  Arch: sudo pacman -S wine")
+                   print("  Fedora: sudo dnf install wine")
            sys.exit(1)
        except PermissionError:
            print(f"\nERROR: Permission denied when executing: {exe_path}")

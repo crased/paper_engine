@@ -5,16 +5,22 @@ Get up and running in 5 minutes!
 **What is Paper Engine?**
 An automated testing and computer vision framework for games. Primary uses: bug detection, exploit identification, automated QA, and game development research.
 
-> **⚠️ LINUX ONLY:** Paper Engine currently only works on Linux. Windows and macOS are not supported.
+> **✅ CROSS-PLATFORM:** Paper Engine supports Linux and macOS. Windows support coming soon.
 
 ## Prerequisites
 
-- **Linux OS** (tested on Arch with Wayland)
+- **Linux or macOS**
+  - Linux: Tested on Arch with Wayland
+  - macOS: Requires Homebrew for Wine installation
 - **Python 3.8+** installed
 - **Git** installed
 - **Wine** installed (for running Windows .exe games)
-- **Screenshot tool** installed (flameshot recommended, or scrot/imagemagick)
-- **Game executable** ready (.exe, .sh, .py, or Linux native)
+  - Linux: `sudo apt install wine` (or pacman/dnf)
+  - macOS: `brew install wine-stable`
+- **Screenshot tool** (platform-specific)
+  - Linux: flameshot recommended, or scrot/imagemagick
+  - macOS: flameshot recommended (`brew install flameshot`), or built-in `screencapture` (fallback)
+- **Game executable** ready (.exe, .sh, .py)
 
 ## Installation
 
