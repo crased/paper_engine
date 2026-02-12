@@ -54,11 +54,10 @@ def path_finder(game_path):
      print(f"Game folder '{game_path}' not found!")
      return None
 
-   # Find executable files by multiple methods:
+   # Find executable files by extension:
    # 1. *.exe files (Windows games via Wine)
    # 2. *.sh scripts (shell scripts)
    # 3. *.py scripts (Python games)
-   # 4. Files with execute permission (Linux native executables)
    executable_files = []
 
    # Security: Validate that all found files are within game/ directory
@@ -84,12 +83,6 @@ def path_finder(game_path):
    for py in game_path.rglob("*.py"):
        if is_safe_path(py):
            executable_files.append(py)
-
-   # Find Linux native executables (files with execute permission, no extension)
-   for file in game_path.rglob("*"):
-       if file.is_file() and os.access(file, os.X_OK) and not file.suffix:
-           if is_safe_path(file):
-               executable_files.append(file)
 
    if not executable_files:
        print("No game executables found in game folder.")

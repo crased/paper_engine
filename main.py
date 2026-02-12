@@ -40,9 +40,9 @@ def update_llm_config(provider):
             'provider': 'openai',
             'model': 'gpt-4'
         },
-        'google-generativeai': {
+        'google-genai': {
             'provider': 'google',
-            'model': 'gemini-2.0-flash-exp'
+            'model': 'gemini-2.5-flash'
         }
     }
 
@@ -100,7 +100,7 @@ def check_python_packages():
     llm_packages = {
         'anthropic': 'anthropic',
         'openai': 'openai',
-        'google.generativeai': 'google-generativeai',
+        'google.genai': 'google-genai',
     }
 
     # Check core packages
@@ -437,14 +437,6 @@ def main():
                    print(f"Consider running: chmod +x {exe_path}")
                game_process = subprocess.Popen(["python", str(exe_path)])
                print(f"\nStarting Python game: {exe_path}")
-           else:
-               # Native Linux executable - launch directly
-               if not os.access(exe_path_obj, os.X_OK):
-                   print(f"\nERROR: File is not executable: {exe_path}")
-                   print(f"Run: chmod +x {exe_path}")
-                   sys.exit(1)
-               game_process = subprocess.Popen([str(exe_path)])
-               print(f"\nStarting native game: {exe_path}")
 
            print("Screenshots will be captured every 5 seconds...")
        except FileNotFoundError as e:
@@ -539,43 +531,43 @@ def main():
    else:
        print("Skipping model testing.")
 
-   # --- Step 4: Search for game controls (optional) ---
-   time.sleep(0.5)
-   choice = input("\nSearch for game controls using AI? (Y/N): ").strip().upper()
-   if choice == "Y":
-       from generate_bot_script import search_game_controls, save_controls_to_config
-
-       print(f"\nSearching web for {game_title} controls...")
-       controls_info = search_game_controls(game_title)
-
-       if controls_info:
-           config_path = save_controls_to_config(game_title, game_path, controls_info)
-           print(f"\n✓ Controls saved to: {config_path}")
-           print("\nControls Preview:")
-           print("-" * 60)
-           print(controls_info[:500] + "..." if len(controls_info) > 500 else controls_info)
-           print("-" * 60)
-       else:
-           print("\n✗ Failed to retrieve game controls")
-           print("  You can manually create a controls config file in conf/")
-   else:
-       print("Skipping controls search.")
-
-   # --- Step 5: Generate bot script (optional) ---
+   # --- Step 4: Generate bot script (optional) ---
    time.sleep(0.5)
    choice = input("\nGenerate AI bot script? (Y/N): ").strip().upper()
    if choice == "Y":
-       from generate_bot_script import generate_bot_script, save_bot_script, read_controls_from_config
+       from generate_bot_script import generate_bot_script, save_bot_script, read_controls_from_config, search_game_controls, save_controls_to_config
 
        # Try to read controls from config
        print(f"\nReading controls configuration for {game_title}...")
-       controls_info = read_controls_from_config(game_title)
+       existing_controls = read_controls_from_config(game_title)
 
-       if not controls_info:
-           print("\n⚠️  No controls configuration found!")
-           print("   You need to run Step 4 (Search for game controls) first.")
-           print("   Or manually create a controls config in conf/")
+       if existing_controls:
+           print("✓ Found existing controls configuration")
+           print("Improving existing controls with latest information...")
+           controls_info = search_game_controls(game_title, existing_controls)
+
+           if controls_info:
+               config_path = save_controls_to_config(game_title, game_path, controls_info)
+               print(f"✓ Controls improved and saved to: {config_path}")
+           else:
+               print("\n✗ Failed to improve controls")
+               print("  Using existing controls from config")
+               controls_info = existing_controls
        else:
+           print("No controls configuration found. Searching automatically...")
+           print(f"\nSearching web for {game_title} controls...")
+           controls_info = search_game_controls(game_title)
+
+           if controls_info:
+               config_path = save_controls_to_config(game_title, game_path, controls_info)
+               print(f"✓ Controls saved to: {config_path}")
+           else:
+               print("\n✗ Failed to retrieve game controls")
+               print("  You can manually create a controls config file in conf/")
+               print("Skipping bot generation.")
+               controls_info = None
+
+       if controls_info:
            print("✓ Controls loaded")
            print("\nGenerating Python bot script...")
            print("This may take 1-2 minutes...\n")

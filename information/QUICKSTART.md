@@ -66,14 +66,13 @@ That's it! The script handles everything else automatically.
 
 ## What Happens Next?
 
-Paper Engine will guide you through a complete 6-step workflow:
+Paper Engine will guide you through a complete 5-step workflow:
 
 1. **Launch game?** → Play for a few minutes
 2. **Label Studio?** → Annotate objects in screenshots
 3. **Train YOLO?** → Train object detection model
 4. **Test model?** → Verify detection works
-5. **Search controls?** → AI finds keyboard controls (requires API key)
-6. **Generate bot?** → AI creates bot script (requires API key)
+5. **Generate bot?** → AI creates bot script (automatically searches for controls)
 
 ## API Key Setup (Optional - for AI features)
 
