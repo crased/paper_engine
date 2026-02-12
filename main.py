@@ -416,17 +416,15 @@ def main():
            # Determine launch method based on file type
            exe_path_obj = Path(exe_path)
 
-           # Security check: Validate file is within game/ directory
+           # Path check: Warn if file is outside game/ directory (e.g., symlink)
            game_dir = Path("game/").resolve()
            try:
                resolved_path = exe_path_obj.resolve()
                if not resolved_path.is_relative_to(game_dir):
-                   print(f"\nSECURITY ERROR: File is outside game/ directory: {exe_path}")
-                   print("This could be a symlink attack. Only run files within game/")
-                   sys.exit(1)
+                   print(f"\n⚠️  NOTE: File resolves outside game/ directory (likely a symlink): {exe_path}")
+                   print(f"   Actual location: {resolved_path}")
            except (ValueError, OSError) as e:
-               print(f"\nSECURITY ERROR: Cannot validate file path: {e}")
-               sys.exit(1)
+               print(f"\n⚠️  Could not validate file path: {e}")
 
            # Security check: Ensure file is readable and exists
            if not exe_path_obj.exists():

@@ -60,29 +60,17 @@ def path_finder(game_path):
    # 3. *.py scripts (Python games)
    executable_files = []
 
-   # Security: Validate that all found files are within game/ directory
-   def is_safe_path(file_path):
-       """Ensure file is within game/ directory (prevent symlink attacks)."""
-       try:
-           resolved = file_path.resolve()
-           return resolved.is_relative_to(game_path)
-       except (ValueError, OSError):
-           return False
-
-   # Find .exe files
+   # Find .exe files (including symlinks)
    for exe in game_path.rglob("*.exe"):
-       if is_safe_path(exe):
-           executable_files.append(exe)
+       executable_files.append(exe)
 
-   # Find .sh scripts
+   # Find .sh scripts (including symlinks)
    for sh in game_path.rglob("*.sh"):
-       if is_safe_path(sh):
-           executable_files.append(sh)
+       executable_files.append(sh)
 
-   # Find .py scripts
+   # Find .py scripts (including symlinks)
    for py in game_path.rglob("*.py"):
-       if is_safe_path(py):
-           executable_files.append(py)
+       executable_files.append(py)
 
    if not executable_files:
        print("No game executables found in game folder.")
