@@ -1,12 +1,7 @@
 """
-Paper Engine GUI - CustomTkinter Interface
+Paper Engine - CustomTkinter GUI
 
-Provides a graphical interface for the Paper Engine workflow:
-  1. Launch game + capture screenshots
-  2. Launch Label Studio for annotation
-  3. Train YOLO model
-  4. Test trained model
-  5. Generate AI bot script
+Entry point for Paper Engine. Replaces the old CLI (main.py).
 
 Usage:
     python gui.py
@@ -22,103 +17,55 @@ import shutil
 import configparser
 from pathlib import Path
 
-# Ensure project root is in path
-sys.path.insert(0, str(Path(__file__).parent))
+PROJECT_ROOT = Path(__file__).parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from conf.config_parser import main_conf as config
 
 
 # ======================================================================
-# Dependency checking (moved from main.py)
+# Dependency helpers
 # ======================================================================
 
+_ALL_PACKAGES = {
+    # import_name -> (pip_name, category)
+    "pynput": ("pynput", "core"),
+    "PIL": ("Pillow", "core"),
+    "mss": ("mss", "core"),
+    "dotenv": ("python-dotenv", "core"),
+    "yaml": ("pyyaml", "core"),
+    "ultralytics": ("ultralytics", "training"),
+    "torch": ("torch", "training"),
+    "anthropic": ("anthropic", "llm"),
+    "openai": ("openai", "llm"),
+    "google.genai": ("google-genai", "llm"),
+}
 
-def check_python_packages():
-    """Check if required Python packages are installed.
 
-    Returns:
-        dict: {package_name: (is_installed: bool, error_msg: str|None)}
-    """
+def check_packages():
+    """Return {pip_name: (installed, category)} for every tracked package."""
     results = {}
-
-    core_packages = {
-        "pynput": "pynput",
-        "PIL": "Pillow",
-        "mss": "mss",
-        "dotenv": "python-dotenv",
-        "yaml": "pyyaml",
-    }
-
-    training_packages = {
-        "ultralytics": "ultralytics",
-        "torch": "torch",
-    }
-
-    llm_packages = {
-        "anthropic": "anthropic",
-        "openai": "openai",
-        "google.genai": "google-genai",
-    }
-
-    for import_name, pip_name in core_packages.items():
+    for import_name, (pip_name, cat) in _ALL_PACKAGES.items():
         try:
             __import__(import_name)
-            results[pip_name] = (True, None)
-        except ImportError as e:
-            results[pip_name] = (False, str(e))
-
-    for import_name, pip_name in training_packages.items():
-        try:
-            __import__(import_name)
-            results[pip_name] = (True, None)
-        except ImportError as e:
-            results[pip_name] = (False, str(e))
-
-    for import_name, pip_name in llm_packages.items():
-        try:
-            __import__(import_name)
-            results[pip_name] = (True, None)
-        except ImportError as e:
-            results[pip_name] = (False, str(e))
-
+            results[pip_name] = (True, cat)
+        except ImportError:
+            results[pip_name] = (False, cat)
     return results
 
 
 def check_system_tools():
-    """Check if required system tools are available in PATH.
-
-    Returns:
-        dict: {tool_name: (is_found: bool, path_or_error: str)}
-    """
-    results = {}
-
-    if sys.platform == "darwin":
-        tools = ["wine", "flameshot", "label-studio"]
-    elif sys.platform == "win32":
-        tools = ["label-studio"]
-    else:
-        tools = ["wine", "flameshot", "label-studio"]
-
-    for tool in tools:
-        path = shutil.which(tool)
-        if path:
-            results[tool] = (True, path)
-        else:
-            results[tool] = (False, f"{tool} not found in PATH")
-
-    return results
+    """Return {tool: (found, detail)} for platform-required tools."""
+    tools = ["label-studio"]
+    if sys.platform != "win32":
+        tools += ["wine", "flameshot"]
+    return {
+        t: (bool(shutil.which(t)), shutil.which(t) or f"{t} not found") for t in tools
+    }
 
 
-def install_python_package(package):
-    """Install a Python package using pip.
-
-    Args:
-        package: Package name to install
-
-    Returns:
-        bool: True if installation succeeded, False otherwise
-    """
-    print(f"  Installing {package}...")
+def pip_install(package):
+    """Install *package* via pip. Returns True on success."""
     try:
         subprocess.run(
             [sys.executable, "-m", "pip", "install", package],
@@ -126,116 +73,99 @@ def install_python_package(package):
             text=True,
             check=True,
         )
-        print(f"  Installed {package}")
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"  Failed to install {package}: {e}")
+    except subprocess.CalledProcessError:
         return False
 
 
-def update_llm_config(provider):
-    """Update conf/main_conf.ini with chosen LLM provider and default model."""
-    config_file = Path(__file__).parent / "conf" / "main_conf.ini"
-
-    provider_map = {
-        "anthropic": {"provider": "anthropic", "model": "claude-sonnet-4-5-20250514"},
-        "openai": {"provider": "openai", "model": "gpt-4"},
-        "google-genai": {"provider": "google", "model": "gemini-2.5-flash"},
+def update_llm_config(provider_key):
+    """Write the chosen LLM provider/model into conf/main_conf.ini."""
+    mapping = {
+        "google-genai": ("google", "gemini-2.5-flash"),
+        "anthropic": ("anthropic", "claude-sonnet-4-5-20250514"),
+        "openai": ("openai", "gpt-4"),
     }
-
-    if provider not in provider_map:
+    if provider_key not in mapping:
         return
-
+    provider, model = mapping[provider_key]
+    ini = PROJECT_ROOT / "conf" / "main_conf.ini"
     try:
-        parser = configparser.ConfigParser()
-        parser.read(config_file)
-
-        if not parser.has_section("LLM"):
-            parser.add_section("LLM")
-
-        parser.set("LLM", "llm_provider", provider_map[provider]["provider"])
-        parser.set("LLM", "llm_model", provider_map[provider]["model"])
-
-        if not parser.has_option("LLM", "max_tokens_search"):
-            parser.set("LLM", "max_tokens_search", "4096")
-
-        with open(config_file, "w") as f:
-            parser.write(f)
+        p = configparser.ConfigParser()
+        p.read(ini)
+        if not p.has_section("LLM"):
+            p.add_section("LLM")
+        p.set("LLM", "llm_provider", provider)
+        p.set("LLM", "llm_model", model)
+        if not p.has_option("LLM", "max_tokens_search"):
+            p.set("LLM", "max_tokens_search", "4096")
+        with open(ini, "w") as f:
+            p.write(f)
     except Exception:
         pass
 
 
-class LogRedirector:
-    """Captures print output and routes it to a callback."""
+# ======================================================================
+# Stdout/stderr -> GUI log redirect
+# ======================================================================
 
+
+class _LogRedirector:
     def __init__(self, callback):
-        self.callback = callback
-        self._buffer = ""
+        self._cb = callback
 
     def write(self, text):
         if text:
-            self.callback(text)
+            self._cb(text)
 
     def flush(self):
         pass
 
 
-class PaperEngineGUI(ctk.CTk):
-    """Main application window for Paper Engine."""
+# ======================================================================
+# Main window
+# ======================================================================
 
+
+class PaperEngineGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
-
-        # Window setup
         self.title("Paper Engine - Pre-Release v1.0")
         self.geometry("900x700")
         self.minsize(750, 550)
-
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        # State
         self._game_process = None
-        self._screenshot_thread = None
         self._capturing = False
         self._window_geometry = None
-        self._last_path_file = Path(__file__).parent / ".last_game_path"
+        self._last_path_file = PROJECT_ROOT / ".last_game_path"
 
         self._build_ui()
-        self._log("\n" + "=" * 60)
-        self._log("\n          PAPER ENGINE - Pre-Release v1.0\n")
         self._log("=" * 60 + "\n")
-
-        # Run dependency check at startup
-        self._run_dependency_check() 
+        self._log("          PAPER ENGINE - Pre-Release v1.0\n")
+        self._log("=" * 60 + "\n")
+        self._run_dependency_check()
 
     # ------------------------------------------------------------------
-    # UI construction
+    # UI
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        # Grid layout: sidebar + main area
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # ---- Sidebar ----
-        sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
-        sidebar.grid(row=0, column=0, sticky="nsew")
-        sidebar.grid_rowconfigure(10, weight=1)  # spacer
+        # -- Sidebar --
+        sb = ctk.CTkFrame(self, width=200, corner_radius=0)
+        sb.grid(row=0, column=0, sticky="nsew")
+        sb.grid_rowconfigure(10, weight=1)
 
-        logo = ctk.CTkLabel(
-            sidebar,
-            text="Paper Engine",
-            font=ctk.CTkFont(size=20, weight="bold"),
+        ctk.CTkLabel(
+            sb, text="Paper Engine", font=ctk.CTkFont(size=20, weight="bold")
+        ).grid(row=0, column=0, padx=20, pady=(20, 5))
+        ctk.CTkLabel(sb, text="Pre-Release v1.0", font=ctk.CTkFont(size=12)).grid(
+            row=1, column=0, padx=20, pady=(0, 20)
         )
-        logo.grid(row=0, column=0, padx=20, pady=(20, 5))
 
-        version_label = ctk.CTkLabel(
-            sidebar, text="Pre-Release v1.0", font=ctk.CTkFont(size=12)
-        )
-        version_label.grid(row=1, column=0, padx=20, pady=(0, 20))
-
-        # Step buttons
         steps = [
             ("1. Launch Game", self._on_launch_game),
             ("   Stop Capture", self._on_stop_capture),
@@ -244,114 +174,94 @@ class PaperEngineGUI(ctk.CTk):
             ("4. Test Model", self._on_test_model),
             ("5. Generate Bot", self._on_generate_bot),
         ]
-
         for i, (text, cmd) in enumerate(steps):
-            btn = ctk.CTkButton(sidebar, text=text, command=cmd, width=170)
+            btn = ctk.CTkButton(sb, text=text, command=cmd, width=170)
             btn.grid(row=i + 2, column=0, padx=15, pady=6)
-            # Keep a reference to stop-capture so we can disable/enable it
             if "Stop" in text:
                 self._stop_btn = btn
                 btn.configure(state="disabled", fg_color="gray")
 
-        # LLM settings button
-        llm_btn = ctk.CTkButton(
-            sidebar,
-            text="LLM Settings",
+        ctk.CTkButton(
+            sb,
+            text="Configuration",
             width=170,
             fg_color="gray30",
-            command=self._on_llm_settings,
-        )
-        llm_btn.grid(row=9, column=0, padx=15, pady=(10, 6))
+            command=self._on_configuration,
+        ).grid(row=9, column=0, padx=15, pady=(10, 6))
 
-        # Appearance selector at bottom
-        appearance_label = ctk.CTkLabel(sidebar, text="Theme:")
-        appearance_label.grid(row=11, column=0, padx=20, pady=(10, 0))
-
-        appearance_menu = ctk.CTkOptionMenu(
-            sidebar,
+        ctk.CTkLabel(sb, text="Theme:").grid(row=11, column=0, padx=20, pady=(10, 0))
+        ctk.CTkOptionMenu(
+            sb,
             values=["Dark", "Light", "System"],
             command=lambda v: ctk.set_appearance_mode(v.lower()),
-        )
-        appearance_menu.grid(row=12, column=0, padx=20, pady=(5, 20))
+        ).grid(row=12, column=0, padx=20, pady=(5, 20))
 
-        # ---- Main content area ----
-        main_frame = ctk.CTkFrame(self)
-        main_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-        main_frame.grid_columnconfigure(0, weight=1)
-        # Row 0 = game path, Row 1 = status bar, Row 2 = log (expands), Row 3 = bottom
-        main_frame.grid_rowconfigure(2, weight=1)
+        # -- Main area --
+        main = ctk.CTkFrame(self)
+        main.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        main.grid_columnconfigure(0, weight=1)
+        main.grid_rowconfigure(2, weight=1)
 
-        # -- Row 0: Game path bar --
-        info_frame = ctk.CTkFrame(main_frame)
-        info_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 2))
-        info_frame.grid_columnconfigure(1, weight=1)
+        # Row 0 : game path
+        path_frame = ctk.CTkFrame(main)
+        path_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 2))
+        path_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(info_frame, text="Game path:").grid(
+        ctk.CTkLabel(path_frame, text="Game path:").grid(
             row=0, column=0, padx=(10, 5), pady=8
         )
         self._game_path_var = ctk.StringVar(value=self._load_last_game_path())
-        game_entry = ctk.CTkEntry(
-            info_frame, textvariable=self._game_path_var, height=34
+        ctk.CTkEntry(path_frame, textvariable=self._game_path_var, height=34).grid(
+            row=0, column=1, padx=5, pady=8, sticky="ew"
         )
-        game_entry.grid(row=0, column=1, padx=5, pady=8, sticky="ew")
-
-        browse_btn = ctk.CTkButton(
-            info_frame,
+        ctk.CTkButton(
+            path_frame,
             text="Browse",
             width=80,
             height=34,
             command=self._browse_game_dir,
-        )
-        browse_btn.grid(row=0, column=2, padx=(5, 10), pady=8)
+        ).grid(row=0, column=2, padx=(5, 10), pady=8)
 
-        # -- Row 1: Status indicators (separate row, no overlap) --
-        status_frame = ctk.CTkFrame(main_frame)
-        status_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 2))
-
+        # Row 1 : status
+        status = ctk.CTkFrame(main)
+        status.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 2))
         self._status_var = ctk.StringVar(value="Idle")
-        self._status_label = ctk.CTkLabel(
-            status_frame,
+        ctk.CTkLabel(
+            status,
             textvariable=self._status_var,
             font=ctk.CTkFont(size=13, weight="bold"),
-        )
-        self._status_label.grid(row=0, column=0, padx=10, pady=5)
-
+        ).grid(row=0, column=0, padx=10, pady=5)
         self._screenshot_count_var = ctk.StringVar(value="Screenshots: 0")
-        ctk.CTkLabel(status_frame, textvariable=self._screenshot_count_var).grid(
+        ctk.CTkLabel(status, textvariable=self._screenshot_count_var).grid(
             row=0, column=1, padx=20, pady=5
         )
 
-        # -- Row 2: Log area (fills remaining space) --
-        self._log_textbox = ctk.CTkTextbox(main_frame, wrap="word", state="disabled")
+        # Row 2 : log
+        self._log_textbox = ctk.CTkTextbox(main, wrap="word", state="disabled")
         self._log_textbox.grid(row=2, column=0, sticky="nsew", padx=10, pady=(2, 5))
 
-        # -- Row 3: Bottom controls --
-        bottom = ctk.CTkFrame(main_frame)
-        bottom.grid(row=3, column=0, sticky="ew", padx=10, pady=(0, 10))
-
-        clear_btn = ctk.CTkButton(
-            bottom, text="Clear Log", width=100, command=self._clear_log
+        # Row 3 : toolbar
+        bar = ctk.CTkFrame(main)
+        bar.grid(row=3, column=0, sticky="ew", padx=10, pady=(0, 10))
+        ctk.CTkButton(bar, text="Clear Log", width=100, command=self._clear_log).pack(
+            side="right", padx=5, pady=5
         )
-        clear_btn.pack(side="right", padx=5, pady=5)
 
     # ------------------------------------------------------------------
-    # Logging helpers
+    # Logging / status (thread-safe)
     # ------------------------------------------------------------------
 
     def _log(self, text: str):
-        """Append text to the log textbox (thread-safe)."""
-
-        def _insert():
+        def _do():
             self._log_textbox.configure(state="normal")
             self._log_textbox.insert("end", text)
             self._log_textbox.see("end")
             self._log_textbox.configure(state="disabled")
 
-        # Schedule on main thread if called from worker
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, _insert)
+        if threading.current_thread() is threading.main_thread():
+            _do()
         else:
-            _insert()
+            self.after(0, _do)
 
     def _clear_log(self):
         self._log_textbox.configure(state="normal")
@@ -359,118 +269,85 @@ class PaperEngineGUI(ctk.CTk):
         self._log_textbox.configure(state="disabled")
 
     def _set_status(self, text: str):
-        def _update():
+        if threading.current_thread() is threading.main_thread():
             self._status_var.set(text)
-
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, _update)
         else:
-            _update()
+            self.after(0, lambda: self._status_var.set(text))
 
     # ------------------------------------------------------------------
-    # Dependency checking (mirrors main.py validate_dependencies)
+    # Dependency check (runs once at startup)
     # ------------------------------------------------------------------
 
     def _run_dependency_check(self):
-        """Run dependency checks at startup and log results."""
-        self._log("\nChecking dependencies...\n")
+        pkgs = check_packages()
+        tools = check_system_tools()
 
-        pkg_results = check_python_packages()
-        tool_results = check_system_tools()
+        missing = {cat: [] for cat in ("core", "training", "llm")}
+        installed_llm = []
+        for name, (ok, cat) in pkgs.items():
+            if not ok:
+                missing[cat].append(name)
+            elif cat == "llm":
+                installed_llm.append(name)
 
-        # Categorise
-        core_pkgs = ["pynput", "Pillow", "mss", "python-dotenv", "pyyaml"]
-        training_pkgs = ["ultralytics", "torch"]
-        llm_pkgs = ["anthropic", "openai", "google-genai"]
+        ok_all = True
 
-        missing_core = [
-            p for p in core_pkgs if p in pkg_results and not pkg_results[p][0]
-        ]
-        missing_training = [
-            p for p in training_pkgs if p in pkg_results and not pkg_results[p][0]
-        ]
-        missing_llm = [
-            p for p in llm_pkgs if p in pkg_results and not pkg_results[p][0]
-        ]
-        installed_llm = [p for p in llm_pkgs if p in pkg_results and pkg_results[p][0]]
-        missing_tools = [t for t, (found, _) in tool_results.items() if not found]
-
-        all_good = True
-
-        # --- Core packages (auto-install) ---
-        if missing_core:
-            all_good = False
-            self._log(f"\n  Missing CORE packages: {', '.join(missing_core)}\n")
+        if missing["core"]:
+            ok_all = False
+            self._log(f"\n  Missing core packages: {', '.join(missing['core'])}\n")
             self._log("  Auto-installing...\n")
-            for pkg in missing_core:
-                ok = install_python_package(pkg)
-                if ok:
+            for pkg in missing["core"]:
+                if pip_install(pkg):
                     self._log(f"    Installed {pkg}\n")
                 else:
-                    self._log(f"    FAILED to install {pkg}\n")
+                    self._log(f"    FAILED {pkg}\n")
 
-        # --- Training packages ---
-        if missing_training:
+        if missing["training"]:
             self._log(
-                f"\n  Missing TRAINING packages (optional): {', '.join(missing_training)}\n"
+                f"\n  Missing training packages (optional): {', '.join(missing['training'])}\n"
             )
-            self._log("    Install with: pip install ultralytics torch\n")
+            self._log("    pip install ultralytics torch\n")
 
-        # --- LLM packages ---
-        if not installed_llm:
-            self._log("\n  No LLM provider installed (needed for bot generation).\n")
-            self._log(
-                "    Install one with: pip install anthropic / openai / google-genai\n"
-            )
-        else:
+        if installed_llm:
             self._log(f"\n  LLM provider: {', '.join(installed_llm)}\n")
+        else:
+            self._log("\n  No LLM provider installed (needed for bot generation).\n")
+            self._log("    pip install google-genai / anthropic / openai\n")
 
-        # --- System tools ---
+        missing_tools = [t for t, (ok, _) in tools.items() if not ok]
         if missing_tools:
-            all_good = False
+            ok_all = False
             self._log(f"\n  Missing system tools: {', '.join(missing_tools)}\n")
-            for tool in missing_tools:
-                if tool == "wine":
-                    self._log("    wine: sudo apt install wine\n")
-                elif tool == "flameshot":
-                    self._log("    flameshot: sudo apt install flameshot\n")
-                elif tool == "label-studio":
-                    self._log("    label-studio: pip install label-studio\n")
 
-        if all_good and not missing_training:
+        if ok_all and not missing["training"]:
             self._log("\n  All dependencies OK.\n")
 
-        self._log("\nReady.  Choose an action from the sidebar.\n")
+        self._log("\nReady.\n")
 
     # ------------------------------------------------------------------
-    # Run a function in a background thread, capturing stdout
+    # Background thread runner
     # ------------------------------------------------------------------
 
-    def _run_in_thread(self, target, *args, **kwargs):
-        """Run *target* in a daemon thread, redirecting stdout/stderr to the log."""
-
+    def _run_in_thread(self, fn, *args):
         def _worker():
-            old_stdout, old_stderr = sys.stdout, sys.stderr
-            redirector = LogRedirector(self._log)
-            sys.stdout = redirector
-            sys.stderr = redirector
+            old_out, old_err = sys.stdout, sys.stderr
+            redir = _LogRedirector(self._log)
+            sys.stdout = redir
+            sys.stderr = redir
             try:
-                target(*args, **kwargs)
+                fn(*args)
             except Exception as exc:
                 self._log(f"\nERROR: {exc}\n")
             finally:
-                sys.stdout, sys.stderr = old_stdout, old_stderr
+                sys.stdout, sys.stderr = old_out, old_err
 
-        t = threading.Thread(target=_worker, daemon=True)
-        t.start()
-        return t
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Game path persistence
     # ------------------------------------------------------------------
 
     def _load_last_game_path(self):
-        """Load the last-used game path, falling back to config default."""
         try:
             if self._last_path_file.exists():
                 saved = self._last_path_file.read_text().strip()
@@ -481,15 +358,10 @@ class PaperEngineGUI(ctk.CTk):
         return str(config.GAME_PATH)
 
     def _save_last_game_path(self, path: str):
-        """Persist the current game path for next launch."""
         try:
             self._last_path_file.write_text(path)
         except Exception:
             pass
-
-    # ------------------------------------------------------------------
-    # Browse for game directory
-    # ------------------------------------------------------------------
 
     def _browse_game_dir(self):
         from tkinter import filedialog
@@ -500,14 +372,14 @@ class PaperEngineGUI(ctk.CTk):
             self._save_last_game_path(d)
 
     # ------------------------------------------------------------------
-    # Step 1: Launch Game + Screenshot capture
+    # 1. Launch Game + screenshot capture
     # ------------------------------------------------------------------
 
     def _on_launch_game(self):
         self._run_in_thread(self._launch_game_worker)
 
     def _launch_game_worker(self):
-        from functions import path_finder, get_title
+        from functions import path_finder
         from screencapture import (
             take_screenshot,
             create_screenshots_directory,
@@ -519,55 +391,48 @@ class PaperEngineGUI(ctk.CTk):
         self._log(f"\n--- Launching game from: {game_path} ---\n")
         self._set_status("Launching game...")
 
-        # Find executable
         exe_path = path_finder(game_path)
         if exe_path is None:
             self._log("ERROR: No executable found in game directory.\n")
             self._set_status("Error")
             return
 
-        exe_path_obj = Path(exe_path)
-        self._log(f"Found executable: {exe_path}\n")
+        exe = Path(exe_path)
+        self._log(f"Found executable: {exe}\n")
 
-        # Launch
         try:
-            if exe_path_obj.suffix.lower() == ".exe":
+            suffix = exe.suffix.lower()
+            if suffix == ".exe":
                 self._game_process = subprocess.Popen(
                     [
                         "wine",
                         "explorer",
                         f"/desktop=game,{config.WINE_DESKTOP_RESOLUTION}",
-                        str(exe_path),
+                        str(exe),
                     ]
                 )
-                self._log(f"Started via Wine: {exe_path}\n")
-            elif exe_path_obj.suffix.lower() == ".sh":
-                self._game_process = subprocess.Popen(["bash", str(exe_path)])
-                self._log(f"Started shell script: {exe_path}\n")
-            elif exe_path_obj.suffix.lower() == ".py":
-                self._game_process = subprocess.Popen(["python", str(exe_path)])
-                self._log(f"Started Python game: {exe_path}\n")
+            elif suffix == ".sh":
+                self._game_process = subprocess.Popen(["bash", str(exe)])
+            elif suffix == ".py":
+                self._game_process = subprocess.Popen(["python", str(exe)])
             else:
-                self._game_process = subprocess.Popen([str(exe_path)])
-                self._log(f"Started native executable: {exe_path}\n")
+                self._game_process = subprocess.Popen([str(exe)])
+            self._log(f"Game started.\n")
         except FileNotFoundError as e:
             self._log(f"ERROR: {e}\n")
             self._set_status("Error")
             return
 
-        # Wait for game to initialise
         wait = config.GAME_INITIALIZATION_WAIT
         self._log(f"Waiting {wait}s for game to initialise...\n")
         time.sleep(wait)
 
-        # Detect window geometry
         self._window_geometry = find_wine_window()
         if self._window_geometry:
             self._log(f"Locked onto game window: {self._window_geometry}\n")
         else:
             self._log("Using full-screen capture mode.\n")
 
-        # Begin screenshot loop
         screenshots_dir = create_screenshots_directory()
         self._capturing = True
         self._set_status("Capturing screenshots...")
@@ -586,8 +451,7 @@ class PaperEngineGUI(ctk.CTk):
             take_screenshot(screenshots_dir, self._window_geometry)
             count += 1
             self.after(
-                0,
-                lambda c=count: self._screenshot_count_var.set(f"Screenshots: {c}"),
+                0, lambda c=count: self._screenshot_count_var.set(f"Screenshots: {c}")
             )
 
         self._capturing = False
@@ -598,7 +462,6 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Idle")
 
     def _on_stop_capture(self):
-        """Stop the running screenshot capture loop and kill the game process."""
         self._capturing = False
         if self._game_process and self._game_process.poll() is None:
             self._game_process.terminate()
@@ -606,7 +469,7 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Stopping...")
 
     # ------------------------------------------------------------------
-    # Step 2: Label Studio
+    # 2. Label Studio
     # ------------------------------------------------------------------
 
     def _on_label_studio(self):
@@ -623,7 +486,7 @@ class PaperEngineGUI(ctk.CTk):
         self._log("Label Studio launched on http://localhost:8080\n")
 
     # ------------------------------------------------------------------
-    # Step 3: Train Model
+    # 3. Train Model
     # ------------------------------------------------------------------
 
     def _on_train_model(self):
@@ -639,7 +502,7 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Idle")
 
     # ------------------------------------------------------------------
-    # Step 4: Test Model
+    # 4. Test Model
     # ------------------------------------------------------------------
 
     def _on_test_model(self):
@@ -655,7 +518,7 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Idle")
 
     # ------------------------------------------------------------------
-    # Step 5: Generate Bot Script
+    # 5. Generate Bot Script
     # ------------------------------------------------------------------
 
     def _on_generate_bot(self):
@@ -674,8 +537,7 @@ class PaperEngineGUI(ctk.CTk):
         )
         from functions import get_title, path_finder
 
-        game_path = self._game_path_var.get()
-        exe_path = path_finder(game_path)
+        exe_path = path_finder(self._game_path_var.get())
         if not exe_path:
             self._log("ERROR: No game executable found.\n")
             self._set_status("Error")
@@ -684,7 +546,6 @@ class PaperEngineGUI(ctk.CTk):
         game_title = get_title(exe_path)
         self._log(f"Game: {game_title}\n")
 
-        # Controls
         existing = read_controls_from_config(game_title)
         if existing:
             self._log("Found existing controls, improving...\n")
@@ -698,7 +559,7 @@ class PaperEngineGUI(ctk.CTk):
             self._set_status("Error")
             return
 
-        save_controls_to_config(game_title, game_path, controls)
+        save_controls_to_config(game_title, exe_path, controls)
         self._log("Controls saved.\n")
 
         self._log("Generating bot script (this may take 1-2 minutes)...\n")
@@ -712,153 +573,164 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Idle")
 
     # ------------------------------------------------------------------
-    # LLM Settings
+    # Configuration
     # ------------------------------------------------------------------
 
-    def _on_llm_settings(self):
-        """Open the LLM provider selection dialog."""
-        dialog = LLMSetupDialog(self, force_show=True)
+    def _on_configuration(self):
+        dialog = ConfigDialog(self)
         result = dialog.wait_for_result()
         if result:
-            self._log(f"\nLLM provider set to: {result}\n")
+            self._log(f"\nConfiguration updated: {result}\n")
 
 
 # ======================================================================
-# LLM Provider Selection Dialog
+# Configuration Dialog (LLM + Training packages)
 # ======================================================================
 
+_LLM_PROVIDERS = [
+    {
+        "id": "google",
+        "label": "Google Gemini (Free tier)",
+        "pip": "google-genai",
+        "import": "google.genai",
+        "key_url": "https://aistudio.google.com/apikey",
+    },
+    {
+        "id": "anthropic",
+        "label": "Anthropic Claude (Paid)",
+        "pip": "anthropic",
+        "import": "anthropic",
+        "key_url": "https://console.anthropic.com/settings/keys",
+    },
+    {
+        "id": "openai",
+        "label": "OpenAI GPT (Paid)",
+        "pip": "openai",
+        "import": "openai",
+        "key_url": "https://platform.openai.com/api-keys",
+    },
+]
 
-class LLMSetupDialog(ctk.CTkToplevel):
-    """Startup dialog for choosing an LLM provider."""
+_TRAINING_PACKAGES = [
+    {"label": "Ultralytics (YOLO)", "pip": "ultralytics", "import": "ultralytics"},
+    {"label": "PyTorch", "pip": "torch", "import": "torch"},
+]
 
-    PROVIDERS = [
-        {
-            "id": "google",
-            "label": "Google Gemini (Free tier)",
-            "pip": "google-genai",
-            "import": "google.genai",
-            "key_url": "https://aistudio.google.com/apikey",
-        },
-        {
-            "id": "anthropic",
-            "label": "Anthropic Claude (Paid)",
-            "pip": "anthropic",
-            "import": "anthropic",
-            "key_url": "https://console.anthropic.com/settings/keys",
-        },
-        {
-            "id": "openai",
-            "label": "OpenAI GPT (Paid)",
-            "pip": "openai",
-            "import": "openai",
-            "key_url": "https://platform.openai.com/api-keys",
-        },
-    ]
 
-    def __init__(self, parent=None, force_show=False):
+class ConfigDialog(ctk.CTkToplevel):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.title("Paper Engine - LLM Setup")
-        self.geometry("520x480")
+        self.title("Paper Engine - Configuration")
+        self.geometry("560x620")
         self.resizable(False, False)
         self.transient(parent)
-
-        self.result = None  # will hold the chosen provider id
-        self._force_show = force_show
-
+        self.result = None
+        self._llm_labels = {}
+        self._training_vars = {}
+        self._training_labels = {}
         self._build()
-        self._detect_installed()
-
-        # Make modal -- must wait until the window is rendered
+        self._detect_state()
         self.after(100, self._try_grab)
 
     def _try_grab(self):
-        """Attempt to grab focus; retry if window isn't viewable yet."""
         try:
             self.grab_set()
         except Exception:
             self.after(100, self._try_grab)
 
     def _build(self):
+        # -- LLM section --
+        ctk.CTkLabel(
+            self, text="Configuration", font=ctk.CTkFont(size=22, weight="bold")
+        ).pack(pady=(20, 2))
+
         ctk.CTkLabel(
             self,
-            text="LLM Provider Setup",
-            font=ctk.CTkFont(size=22, weight="bold"),
-        ).pack(pady=(24, 4))
-
+            text="LLM Provider  (for bot generation)",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w",
+        ).pack(fill="x", padx=30, pady=(16, 4))
         ctk.CTkLabel(
             self,
-            text="Choose which AI provider to use for bot generation.\n"
-            "You only need one. Google Gemini has a free tier.",
-            font=ctk.CTkFont(size=13),
-            justify="center",
-        ).pack(pady=(0, 16))
-
-        self._radio_var = ctk.StringVar(value="google")
-        self._radio_buttons = {}
-
-        for prov in self.PROVIDERS:
-            frame = ctk.CTkFrame(self, fg_color="transparent")
-            frame.pack(fill="x", padx=30, pady=2)
-
-            rb = ctk.CTkRadioButton(
-                frame,
-                text=prov["label"],
-                variable=self._radio_var,
-                value=prov["id"],
-                font=ctk.CTkFont(size=14),
-            )
-            rb.pack(side="left")
-
-            self._radio_buttons[prov["id"]] = rb
-
-            # Show installed badge
-            status_label = ctk.CTkLabel(frame, text="", font=ctk.CTkFont(size=12))
-            status_label.pack(side="right", padx=10)
-            prov["_status_label"] = status_label
-
-        # API key entry
-        ctk.CTkLabel(self, text="API Key:", font=ctk.CTkFont(size=13), anchor="w").pack(
-            fill="x", padx=30, pady=(20, 2)
-        )
-
-        self._api_key_var = ctk.StringVar(value=os.environ.get("API_KEY", ""))
-        self._key_entry = ctk.CTkEntry(
-            self,
-            textvariable=self._api_key_var,
-            height=36,
-            placeholder_text="Paste your API key here",
-            show="*",
-        )
-        self._key_entry.pack(fill="x", padx=30, pady=(0, 4))
-
-        self._key_hint = ctk.CTkLabel(
-            self,
-            text="",
-            font=ctk.CTkFont(size=11),
+            text="You only need one. Google Gemini has a free tier.",
+            font=ctk.CTkFont(size=12),
             text_color="gray",
             anchor="w",
+        ).pack(fill="x", padx=30, pady=(0, 8))
+
+        self._llm_var = ctk.StringVar(value="google")
+        for prov in _LLM_PROVIDERS:
+            row = ctk.CTkFrame(self, fg_color="transparent")
+            row.pack(fill="x", padx=30, pady=1)
+            ctk.CTkRadioButton(
+                row,
+                text=prov["label"],
+                variable=self._llm_var,
+                value=prov["id"],
+                font=ctk.CTkFont(size=13),
+            ).pack(side="left")
+            lbl = ctk.CTkLabel(row, text="", font=ctk.CTkFont(size=11))
+            lbl.pack(side="right", padx=8)
+            self._llm_labels[prov["id"]] = lbl
+
+        # API key
+        ctk.CTkLabel(self, text="API Key:", font=ctk.CTkFont(size=13), anchor="w").pack(
+            fill="x", padx=30, pady=(12, 2)
+        )
+        self._api_key_var = ctk.StringVar(value=os.environ.get("API_KEY", ""))
+        ctk.CTkEntry(
+            self,
+            textvariable=self._api_key_var,
+            height=34,
+            placeholder_text="Paste your API key here",
+            show="*",
+        ).pack(fill="x", padx=30, pady=(0, 2))
+        self._key_hint = ctk.CTkLabel(
+            self, text="", font=ctk.CTkFont(size=11), text_color="gray", anchor="w"
         )
         self._key_hint.pack(fill="x", padx=30)
+        self._llm_var.trace_add("write", lambda *_: self._update_hint())
 
-        # Update hint when provider changes
-        self._radio_var.trace_add("write", lambda *_: self._update_hint())
-        self._update_hint()
-
-        # Buttons
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=30, pady=(20, 20))
-
-        self._confirm_btn = ctk.CTkButton(
-            btn_frame,
-            text="Confirm & Install",
-            width=180,
-            height=40,
-            command=self._on_confirm,
+        # -- Separator --
+        ctk.CTkFrame(self, height=2, fg_color="gray40").pack(
+            fill="x", padx=30, pady=(14, 10)
         )
-        self._confirm_btn.pack(side="left", padx=(0, 10))
 
+        # -- Training section --
+        ctk.CTkLabel(
+            self,
+            text="Training Packages  (for local YOLO training)",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w",
+        ).pack(fill="x", padx=30, pady=(0, 4))
+        ctk.CTkLabel(
+            self,
+            text="~6.5 GB total. Only needed if you want to train models locally.",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            anchor="w",
+        ).pack(fill="x", padx=30, pady=(0, 8))
+
+        for pkg in _TRAINING_PACKAGES:
+            row = ctk.CTkFrame(self, fg_color="transparent")
+            row.pack(fill="x", padx=30, pady=1)
+            var = ctk.BooleanVar(value=False)
+            ctk.CTkCheckBox(
+                row, text=pkg["label"], variable=var, font=ctk.CTkFont(size=13)
+            ).pack(side="left")
+            lbl = ctk.CTkLabel(row, text="", font=ctk.CTkFont(size=11))
+            lbl.pack(side="right", padx=8)
+            self._training_vars[pkg["pip"]] = var
+            self._training_labels[pkg["pip"]] = lbl
+
+        # -- Buttons --
+        btns = ctk.CTkFrame(self, fg_color="transparent")
+        btns.pack(fill="x", padx=30, pady=(20, 14))
         ctk.CTkButton(
-            btn_frame,
+            btns, text="Save & Install", width=180, height=40, command=self._on_confirm
+        ).pack(side="left", padx=(0, 10))
+        ctk.CTkButton(
+            btns,
             text="Skip",
             width=100,
             height=40,
@@ -866,90 +738,100 @@ class LLMSetupDialog(ctk.CTkToplevel):
             command=self._on_skip,
         ).pack(side="right")
 
-        self._status_text = ctk.CTkLabel(
+        self._msg = ctk.CTkLabel(
             self, text="", font=ctk.CTkFont(size=12), text_color="orange"
         )
-        self._status_text.pack(pady=(0, 10))
+        self._msg.pack(pady=(0, 10))
 
-    def _detect_installed(self):
-        """Check which providers are already installed and mark them."""
-        current_provider = getattr(config, "LLM_PROVIDER", "google")
-        for prov in self.PROVIDERS:
+    # -- state detection --
+
+    def _detect_state(self):
+        current_llm = getattr(config, "LLM_PROVIDER", "google")
+        for prov in _LLM_PROVIDERS:
+            lbl = self._llm_labels[prov["id"]]
             try:
                 __import__(prov["import"])
-                prov["_status_label"].configure(text="(installed)", text_color="green")
-                prov["_installed"] = True
+                lbl.configure(text="installed", text_color="green")
+                prov["_ok"] = True
             except ImportError:
-                prov["_status_label"].configure(
-                    text="(not installed)", text_color="gray"
-                )
-                prov["_installed"] = False
+                lbl.configure(text="not installed", text_color="gray")
+                prov["_ok"] = False
+            if prov["id"] == current_llm:
+                self._llm_var.set(prov["id"])
 
-            # Pre-select whatever is currently configured
-            if prov["id"] == current_provider:
-                self._radio_var.set(prov["id"])
+        for pkg in _TRAINING_PACKAGES:
+            lbl = self._training_labels[pkg["pip"]]
+            try:
+                __import__(pkg["import"])
+                lbl.configure(text="installed", text_color="green")
+                self._training_vars[pkg["pip"]].set(True)
+                pkg["_ok"] = True
+            except ImportError:
+                lbl.configure(text="not installed", text_color="gray")
+                pkg["_ok"] = False
+
+        self._update_hint()
 
     def _update_hint(self):
-        selected = self._radio_var.get()
-        for prov in self.PROVIDERS:
-            if prov["id"] == selected:
+        sel = self._llm_var.get()
+        for prov in _LLM_PROVIDERS:
+            if prov["id"] == sel:
                 self._key_hint.configure(text=f"Get key: {prov['key_url']}")
-                break
+                return
+
+    # -- actions --
+
+    def _set_msg(self, text):
+        self._msg.configure(text=text)
+        self.update()
 
     def _on_confirm(self):
-        selected_id = self._radio_var.get()
-        prov = next(p for p in self.PROVIDERS if p["id"] == selected_id)
-
-        # Install if needed
-        if not prov.get("_installed"):
-            self._status_text.configure(text=f"Installing {prov['pip']}...")
-            self.update()
-            ok = install_python_package(prov["pip"])
-            if not ok:
-                self._status_text.configure(text=f"Failed to install {prov['pip']}")
+        # -- Install LLM provider if needed --
+        prov = next(p for p in _LLM_PROVIDERS if p["id"] == self._llm_var.get())
+        if not prov.get("_ok"):
+            self._set_msg(f"Installing {prov['pip']}...")
+            if not pip_install(prov["pip"]):
+                self._set_msg(f"Failed to install {prov['pip']}")
                 return
-            self._status_text.configure(text=f"Installed {prov['pip']}")
 
-        # Save API key to .env
+        # -- Install training packages if checked and not already installed --
+        for pkg in _TRAINING_PACKAGES:
+            wanted = self._training_vars[pkg["pip"]].get()
+            already = pkg.get("_ok", False)
+            if wanted and not already:
+                self._set_msg(f"Installing {pkg['pip']} (this may take a while)...")
+                if not pip_install(pkg["pip"]):
+                    self._set_msg(f"Failed to install {pkg['pip']}")
+                    return
+
+        # -- Save API key --
         api_key = self._api_key_var.get().strip()
         if api_key:
             env_path = Path(".env")
-            # Read existing content or create new
-            lines = []
-            if env_path.exists():
-                with open(env_path, "r") as f:
-                    lines = f.readlines()
-
-            # Replace or add API_KEY line
-            found = False
+            lines = env_path.read_text().splitlines(True) if env_path.exists() else []
+            replaced = False
             for i, line in enumerate(lines):
                 if line.strip().startswith("API_KEY="):
                     lines[i] = f"API_KEY={api_key}\n"
-                    found = True
+                    replaced = True
                     break
-            if not found:
+            if not replaced:
                 lines.append(f"API_KEY={api_key}\n")
-
-            with open(env_path, "w") as f:
-                f.writelines(lines)
-
-            # Also set in current environment so it takes effect immediately
+            env_path.write_text("".join(lines))
             os.environ["API_KEY"] = api_key
 
-        # Update config
-        update_llm_config(prov["pip"] if prov["id"] != "google" else "google-genai")
+        # -- Save LLM config --
+        update_llm_config(prov["pip"])
 
-        self.result = selected_id
+        self.result = prov["id"]
         self.grab_release()
         self.destroy()
 
     def _on_skip(self):
-        self.result = None
         self.grab_release()
         self.destroy()
 
     def wait_for_result(self):
-        """Block until the dialog is closed."""
         self.wait_window()
         return self.result
 
@@ -959,28 +841,24 @@ class LLMSetupDialog(ctk.CTkToplevel):
 # ======================================================================
 
 
-def main():
-    # Detect if any LLM provider is installed
-    has_llm = False
-    for import_name in ["anthropic", "openai", "google.genai"]:
-        try:
-            __import__(import_name)
-            has_llm = True
-            break
-        except ImportError:
-            pass
+def _is_installed(import_name):
+    try:
+        __import__(import_name)
+        return True
+    except ImportError:
+        return False
 
-    # Show LLM setup dialog if none installed
-    if not has_llm:
-        # Need a temporary root for the dialog
+
+def main():
+    # Show config dialog at startup if no LLM provider is installed
+    needs_setup = not any(_is_installed(p["import"]) for p in _LLM_PROVIDERS)
+    if needs_setup:
         root = ctk.CTk()
-        root.withdraw()  # hide the main window
-        dialog = LLMSetupDialog(root)
-        dialog.wait_for_result()
+        root.withdraw()
+        ConfigDialog(root).wait_for_result()
         root.destroy()
 
-    app = PaperEngineGUI()
-    app.mainloop()
+    PaperEngineGUI().mainloop()
 
 
 if __name__ == "__main__":

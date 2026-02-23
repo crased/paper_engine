@@ -2,7 +2,6 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from pynput import keyboard
 import configparser
 
 
@@ -21,14 +20,14 @@ def launch_label_studio(env):
         print("\nLabel Studio started on http://localhost:8080")
         return label_process
     except FileNotFoundError:
-        print("\nERROR: label-studio command not found.")
-        print("Install with: pip install label-studio")
-        print("Then ensure it's in your PATH.")
-        sys.exit(1)
+        raise FileNotFoundError(
+            "label-studio command not found. Install with: pip install label-studio"
+        )
     except subprocess.SubprocessError as e:
-        print(f"\nERROR: Failed to start Label Studio: {e}")
-        print("Try running manually: label-studio start --port 8080")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Failed to start Label Studio: {e}\n"
+            "Try running manually: label-studio start --port 8080"
+        )
 
 
 def get_title(game_path):
@@ -120,7 +119,7 @@ def _load_custom_filters():
 
 
 def path_finder(game_path):
-    game_path = Path("game/").resolve()  # Resolve to absolute path
+    game_path = Path(game_path).resolve()  # Resolve to absolute path
     # You may have to change games x permissions level to continue.
     if not game_path.exists():
         print(f"Game folder '{game_path}' not found!")
@@ -226,29 +225,18 @@ def path_finder(game_path):
 
     filtered_exe_files.sort(key=prioritize_exe)
 
-    # If only one executable found after filtering, auto-select it
-    if len(filtered_exe_files) == 1:
+    # Auto-select the best match (first after priority sort)
+    if filtered_exe_files:
+        if len(filtered_exe_files) > 1:
+            print("\nMultiple game executables found:")
+            for idx, exe in enumerate(filtered_exe_files, 1):
+                size_mb = exe.stat().st_size / (1024 * 1024)
+                marker = " <-- selected" if idx == 1 else ""
+                print(f"  {idx}) {exe} ({size_mb:.1f} MB){marker}")
+            print(f"\nAuto-selected best match: {filtered_exe_files[0].name}")
         return filtered_exe_files[0]
 
-    # If multiple executables, let user choose
-    print("\nMultiple game executables found:")
-    for idx, exe in enumerate(filtered_exe_files, 1):
-        size_mb = exe.stat().st_size / (1024 * 1024)
-        print(f"  {idx}) {exe} ({size_mb:.1f} MB)")
-
-    while True:
-        try:
-            choice = input(f"\nSelect game (1-{len(filtered_exe_files)}): ").strip()
-            selected_idx = int(choice) - 1
-            if 0 <= selected_idx < len(filtered_exe_files):
-                return filtered_exe_files[selected_idx]
-            else:
-                print(f"Please enter a number between 1 and {len(filtered_exe_files)}")
-        except ValueError:
-            print("Please enter a valid number")
-        except KeyboardInterrupt:
-            print("\nCancelled.")
-            return None
+    return None
 
 
 def delete_last_screenshot(screenshots_dir="screenshots"):

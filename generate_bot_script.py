@@ -1,7 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
 from functions import get_title, path_finder
 from conf.config_parser import main_conf as config
 
@@ -23,7 +22,7 @@ def create_env_file_if_missing():
             f.write("# Anthropic Claude: https://console.anthropic.com/settings/keys\n")
             f.write("# OpenAI GPT: https://platform.openai.com/api-keys\n")
             f.write("# Configure provider in conf/main_conf.ini [LLM] section\n")
-        print(f"✓ Created .env file at: {env_path.absolute()}")
+        print(f"Created .env file at: {env_path.absolute()}")
         print("\n" + "=" * 60)
         print("API KEY SETUP")
         print("=" * 60)
@@ -39,11 +38,12 @@ def create_env_file_if_missing():
     return True
 
 
-# Create .env if missing
-create_env_file_if_missing()
+def _ensure_env_loaded():
+    """Load .env file, creating it first if missing. Safe to call multiple times."""
+    create_env_file_if_missing()
+    from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+    load_dotenv()
 
 
 def get_llm_client(provider, api_key):
@@ -138,6 +138,8 @@ def search_game_controls(game_title, existing_controls=None):
     Returns:
         str: Game controls information (new or improved)
     """
+    _ensure_env_loaded()
+
     # Get LLM configuration
     llm_provider = config.LLM_PROVIDER
     llm_model = config.LLM_MODEL
@@ -155,8 +157,8 @@ def search_game_controls(game_title, existing_controls=None):
         if llm_provider.lower() == "anthropic":
             print("   Get API key at: https://console.anthropic.com/settings/keys")
         print("2. Edit .env and add your API key")
-        print("   (If .env doesn't exist, run: python main.py first)")
-        print("3. Configure provider in conf/main_conf.ini (llm_provider)")
+        print("3. Use the Configuration dialog in gui.py to set up your provider")
+        print("4. Or configure provider in conf/main_conf.ini (llm_provider)")
         print("=" * 60 + "\n")
         return None
 
@@ -598,6 +600,8 @@ def generate_bot_script(game_title, controls_info):
     Returns:
         str: Complete generated Python bot script code
     """
+    _ensure_env_loaded()
+
     # Get LLM configuration
     llm_model = config.LLM_MODEL
     llm_provider = config.LLM_PROVIDER
@@ -711,7 +715,9 @@ def save_bot_script(game_title, script_code):
 
 
 def main():
-    """Main execution"""
+    """Main execution (standalone CLI entry point)"""
+    _ensure_env_loaded()
+
     print("=" * 60)
     print(f"Game Controls Finder - Powered by {config.LLM_MODEL}")
     print("=" * 60)
