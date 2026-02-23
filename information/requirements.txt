@@ -16,6 +16,9 @@ python-dotenv>=1.0.0
 # YAML parsing for config
 PyYAML>=6.0
 
+# GUI framework
+customtkinter>=5.2.0
+
 # ============================================================
 # INSTALLATION INSTRUCTIONS
 # ============================================================

@@ -59,6 +59,7 @@ Thumbs.db
 
 # Conf
 *.env
+
 # test 
 *test_sets/
 
