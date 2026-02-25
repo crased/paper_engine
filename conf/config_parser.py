@@ -47,19 +47,19 @@ class ConfigParser:
             Converted value (bool, int, float, list, dict, or str)
         """
         # Handle boolean values
-        if value.lower() in ('true', 'yes', '1', 'on'):
+        if value.lower() in ("true", "yes", "1", "on"):
             return True
-        elif value.lower() in ('false', 'no', '0', 'off'):
+        elif value.lower() in ("false", "no", "0", "off"):
             return False
 
         # Handle lists (comma-separated values)
-        if ',' in value:
-            return [item.strip() for item in value.split(',')]
+        if "," in value:
+            return [item.strip() for item in value.split(",")]
 
         # Try to convert to number
         try:
             # Try integer first
-            if '.' not in value:
+            if "." not in value:
                 return int(value)
             else:
                 return float(value)
@@ -75,7 +75,7 @@ class ConfigParser:
 
     def __getattr__(self, name):
         """Allow attribute-style access to configuration values"""
-        if name.startswith('_'):
+        if name.startswith("_"):
             return object.__getattribute__(self, name)
         return self._config.get(name.upper())
 
@@ -111,14 +111,6 @@ class MainConfig(ConfigParser):
         config_dir = Path(__file__).parent
         super().__init__(config_dir / "main_conf.ini")
 
-    @property
-    def LABEL_STUDIO_ENV(self):
-        """Return Label Studio environment variables as dict"""
-        enabled = self.get("LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED", True)
-        return {
-            "LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED": "true" if enabled else "false"
-        }
-
 
 class ScreencaptureConfig(ConfigParser):
     """Configuration for screencapture.py"""
@@ -132,7 +124,7 @@ class ScreencaptureConfig(ConfigParser):
         """Return Linux environment variables as dict"""
         return {
             "XDG_CURRENT_DESKTOP": self.get("XDG_CURRENT_DESKTOP", "sway"),
-            "QT_QPA_PLATFORM": self.get("QT_QPA_PLATFORM", "wayland")
+            "QT_QPA_PLATFORM": self.get("QT_QPA_PLATFORM", "wayland"),
         }
 
     @property
@@ -141,7 +133,7 @@ class ScreencaptureConfig(ConfigParser):
         command = self.get("COMMAND", "flameshot")
         args = self.get("ARGS", "screen,-n,1,-r")
         if isinstance(args, str):
-            args_list = [arg.strip() for arg in args.split(',')]
+            args_list = [arg.strip() for arg in args.split(",")]
         else:
             args_list = args
         return [command] + args_list
@@ -159,7 +151,7 @@ class TrainingConfig(ConfigParser):
         """Return export formats as list"""
         formats = self.get("EXPORT_FORMATS", "torchscript,onnx")
         if isinstance(formats, str):
-            return [fmt.strip() for fmt in formats.split(',')]
+            return [fmt.strip() for fmt in formats.split(",")]
         return formats
 
 
@@ -178,13 +170,15 @@ class PrepareDatasetConfig(ConfigParser):
         """
         from collections import OrderedDict
 
-        if not self.parser.has_section('Groups'):
+        if not self.parser.has_section("Groups"):
             return OrderedDict()
 
         groups = OrderedDict()
-        for group_name, labels_str in self.parser.items('Groups'):
+        for group_name, labels_str in self.parser.items("Groups"):
             if labels_str.strip():  # Only include non-empty groups
-                labels = [label.strip() for label in labels_str.split(',') if label.strip()]
+                labels = [
+                    label.strip() for label in labels_str.split(",") if label.strip()
+                ]
                 if labels:
                     groups[group_name] = labels
 
@@ -196,11 +190,11 @@ class PrepareDatasetConfig(ConfigParser):
         Return label mapping for renaming labels
         Format: {original_name: new_name}
         """
-        if not self.parser.has_section('LabelMapping'):
+        if not self.parser.has_section("LabelMapping"):
             return {}
 
         mapping = {}
-        for original, new_name in self.parser.items('LabelMapping'):
+        for original, new_name in self.parser.items("LabelMapping"):
             if new_name.strip():
                 mapping[original] = new_name.strip()
 
@@ -227,7 +221,9 @@ class PrepareDatasetConfig(ConfigParser):
                 print("WARNING: enable_custom_grouping=true but no groups defined")
                 print("Falling back to auto-discovery")
                 if discovered_classes:
-                    return {cls: idx for idx, cls in enumerate(sorted(discovered_classes))}
+                    return {
+                        cls: idx for idx, cls in enumerate(sorted(discovered_classes))
+                    }
                 return {}
 
             # Create mapping with sequential IDs
@@ -265,6 +261,7 @@ prepare_dataset_conf = PrepareDatasetConfig()
 def _expose_config_values():
     """Expose config values as module-level variables for backwards compatibility"""
     import sys
+
     module = sys.modules[__name__]
 
     # Expose main config

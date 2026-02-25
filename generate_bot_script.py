@@ -1,10 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from google import genai
-from anthropic import Anthropic
-from openai import OpenAI
-from dotenv import load_dotenv
 from functions import get_title, path_finder
 from conf.config_parser import main_conf as config
 
@@ -15,19 +11,21 @@ def create_env_file_if_missing():
 
     if not env_path.exists():
         print("\nNo .env file found. Creating one...")
-        with open(env_path, 'w') as f:
+        with open(env_path, "w") as f:
             f.write("# Paper Engine - Environment Variables\n")
             f.write("# Default: Google Gemini (Free tier available)\n")
-            f.write("# Get your free API key at: https://aistudio.google.com/apikey\n\n")
+            f.write(
+                "# Get your free API key at: https://aistudio.google.com/apikey\n\n"
+            )
             f.write("API_KEY=your-api-key-here\n\n")
             f.write("# Optional: Switch to advanced models\n")
             f.write("# Anthropic Claude: https://console.anthropic.com/settings/keys\n")
             f.write("# OpenAI GPT: https://platform.openai.com/api-keys\n")
             f.write("# Configure provider in conf/main_conf.ini [LLM] section\n")
-        print(f"✓ Created .env file at: {env_path.absolute()}")
-        print("\n" + "="*60)
+        print(f"Created .env file at: {env_path.absolute()}")
+        print("\n" + "=" * 60)
         print("API KEY SETUP")
-        print("="*60)
+        print("=" * 60)
         print("\nDefault: Google Gemini (FREE)")
         print("  1. Visit: https://aistudio.google.com/apikey")
         print("  2. Click 'Create API Key'")
@@ -35,22 +33,23 @@ def create_env_file_if_missing():
         print(f"  4. Edit {env_path.absolute()} and replace 'your-api-key-here'")
         print("\nOptional: Use advanced models (Anthropic/OpenAI)")
         print("  - See README.md for instructions")
-        print("="*60)
+        print("=" * 60)
         return False
     return True
 
 
-# Create .env if missing
-if not create_env_file_if_missing():
-    sys.exit(0)
+def _ensure_env_loaded():
+    """Load .env file, creating it first if missing. Safe to call multiple times."""
+    create_env_file_if_missing()
+    from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+    load_dotenv()
 
 
 def get_llm_client(provider, api_key):
     """
-    Get the appropriate LLM client based on provider
+    Get the appropriate LLM client based on provider.
+    Imports each SDK lazily so only the selected provider needs to be installed.
 
     Args:
         provider: LLM provider name (anthropic, openai, google)
@@ -60,12 +59,27 @@ def get_llm_client(provider, api_key):
         Client instance for the provider
     """
     if provider.lower() == "anthropic":
+        try:
+            from anthropic import Anthropic
+        except ImportError:
+            raise ImportError(
+                "anthropic package not installed. Run: pip install anthropic"
+            )
         return Anthropic(api_key=api_key)
     elif provider.lower() == "openai":
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise ImportError("openai package not installed. Run: pip install openai")
         return OpenAI(api_key=api_key)
     elif provider.lower() == "google":
-        client = genai.Client(api_key=api_key)
-        return client
+        try:
+            from google import genai
+        except ImportError:
+            raise ImportError(
+                "google-genai package not installed. Run: pip install google-genai"
+            )
+        return genai.Client(api_key=api_key)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -89,7 +103,7 @@ def call_llm(client, provider, model, prompt, max_tokens=4096):
             response = client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
             return response.content[0].text
 
@@ -97,15 +111,12 @@ def call_llm(client, provider, model, prompt, max_tokens=4096):
             response = client.chat.completions.create(
                 model=model,
                 max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
             return response.choices[0].message.content
 
         elif provider.lower() == "google":
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt
-            )
+            response = client.models.generate_content(model=model, contents=prompt)
             return response.text
 
         else:
@@ -127,6 +138,8 @@ def search_game_controls(game_title, existing_controls=None):
     Returns:
         str: Game controls information (new or improved)
     """
+    _ensure_env_loaded()
+
     # Get LLM configuration
     llm_provider = config.LLM_PROVIDER
     llm_model = config.LLM_MODEL
@@ -144,8 +157,8 @@ def search_game_controls(game_title, existing_controls=None):
         if llm_provider.lower() == "anthropic":
             print("   Get API key at: https://console.anthropic.com/settings/keys")
         print("2. Edit .env and add your API key")
-        print("   (If .env doesn't exist, run: python main.py first)")
-        print("3. Configure provider in conf/main_conf.ini (llm_provider)")
+        print("3. Use the Configuration dialog in gui.py to set up your provider")
+        print("4. Or configure provider in conf/main_conf.ini (llm_provider)")
         print("=" * 60 + "\n")
         return None
 
@@ -157,7 +170,9 @@ def search_game_controls(game_title, existing_controls=None):
         return None
 
     if existing_controls:
-        print(f"\nImproving existing {game_title} controls using {llm_provider}/{llm_model}...")
+        print(
+            f"\nImproving existing {game_title} controls using {llm_provider}/{llm_model}..."
+        )
         prompt = f"""You are a playtest Research professional. Verify and correct the controls documentation for "{game_title}".
 
 EXISTING CONTROLS:
@@ -185,7 +200,9 @@ Output format (factual only, no commentary):
 
 VERIFY BEFORE INCLUDING. Accuracy over completeness."""
     else:
-        print(f"\nSearching for {game_title} controls using {llm_provider}/{llm_model}...")
+        print(
+            f"\nSearching for {game_title} controls using {llm_provider}/{llm_model}..."
+        )
         prompt = f"""You are a playtest Research professional. Search the web for the EXACT DEFAULT KEYBOARD CONTROLS for "{game_title}" from official documentation, game settings screens, or verified gaming wikis.
 
 STRICT ACCURACY REQUIREMENTS:
@@ -244,13 +261,15 @@ def save_controls_to_config(game_title, game_path, controls_info):
     conf_dir.mkdir(exist_ok=True)
 
     # Sanitize game title for filename
-    safe_title = "".join(c for c in game_title if c.isalnum() or c in (' ', '_')).strip()
-    safe_title = safe_title.replace(' ', '_').lower()
+    safe_title = "".join(
+        c for c in game_title if c.isalnum() or c in (" ", "_")
+    ).strip()
+    safe_title = safe_title.replace(" ", "_").lower()
 
     config_path = conf_dir / f"{safe_title}_controls.ini"
 
     # Write to .ini file
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         f.write(f"# ============================================\n")
         f.write(f"# {game_title} - Keyboard Controls\n")
         f.write(f"# ============================================\n")
@@ -272,7 +291,7 @@ def save_controls_to_config(game_title, game_path, controls_info):
         f.write(f"# AI-generated controls (verify accuracy):\n\n")
 
         # Write controls info as comments for reference
-        for line in controls_info.split('\n'):
+        for line in controls_info.split("\n"):
             f.write(f"# {line}\n")
 
     return config_path
@@ -289,26 +308,32 @@ def read_controls_from_config(game_title):
         str: Controls information from .ini file, or None if not found
     """
     conf_dir = Path("conf")
-    safe_title = "".join(c for c in game_title if c.isalnum() or c in (' ', '_')).strip()
-    safe_title = safe_title.replace(' ', '_').lower()
+    safe_title = "".join(
+        c for c in game_title if c.isalnum() or c in (" ", "_")
+    ).strip()
+    safe_title = safe_title.replace(" ", "_").lower()
     config_path = conf_dir / f"{safe_title}_controls.ini"
 
     if not config_path.exists():
         return None
 
     # Read the controls section
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         content = f.read()
         # Extract everything after [Controls]
         if "[Controls]" in content:
             controls_section = content.split("[Controls]")[1]
             # Remove comment markers for cleaner reading
-            controls_text = "\n".join(line.lstrip("# ") for line in controls_section.split("\n"))
+            controls_text = "\n".join(
+                line.lstrip("# ") for line in controls_section.split("\n")
+            )
             return controls_text.strip()
     return None
 
 
-def generate_bot_script_part1(game_title, controls_info, llm_provider, llm_model, client):
+def generate_bot_script_part1(
+    game_title, controls_info, llm_provider, llm_model, client
+):
     """
     Generate Part 1: Core infrastructure (model, capture, keyboard control)
 
@@ -451,7 +476,9 @@ Include docstrings. NO placeholder comments like "# TODO" or "# Implement this".
         return None
 
 
-def generate_bot_script_part2(game_title, controls_info, llm_provider, llm_model, client):
+def generate_bot_script_part2(
+    game_title, controls_info, llm_provider, llm_model, client
+):
     """
     Generate Part 2: Decision logic, actions, and main loop
 
@@ -573,6 +600,8 @@ def generate_bot_script(game_title, controls_info):
     Returns:
         str: Complete generated Python bot script code
     """
+    _ensure_env_loaded()
+
     # Get LLM configuration
     llm_model = config.LLM_MODEL
     llm_provider = config.LLM_PROVIDER
@@ -595,14 +624,18 @@ def generate_bot_script(game_title, controls_info):
     print("Using two-stage generation for better readability...")
 
     # Generate Part 1: Core infrastructure
-    part1_code = generate_bot_script_part1(game_title, controls_info, llm_provider, llm_model, client)
+    part1_code = generate_bot_script_part1(
+        game_title, controls_info, llm_provider, llm_model, client
+    )
     if not part1_code:
         return None
 
     print(f"✓ Part 1 complete ({len(part1_code.split(chr(10)))} lines)")
 
     # Generate Part 2: Game logic and execution
-    part2_code = generate_bot_script_part2(game_title, controls_info, llm_provider, llm_model, client)
+    part2_code = generate_bot_script_part2(
+        game_title, controls_info, llm_provider, llm_model, client
+    )
     if not part2_code:
         return None
 
@@ -632,161 +665,24 @@ Generated in two parts for readability:
 
 '''
 
-    complete_script = header + part1_code + "\n\n\n" + "# " + "="*77 + "\n" + "# PART 2: GAME LOGIC AND EXECUTION\n" + "# " + "="*77 + "\n\n" + part2_code
+    complete_script = (
+        header
+        + part1_code
+        + "\n\n\n"
+        + "# "
+        + "=" * 77
+        + "\n"
+        + "# PART 2: GAME LOGIC AND EXECUTION\n"
+        + "# "
+        + "=" * 77
+        + "\n\n"
+        + part2_code
+    )
 
     total_lines = len(complete_script.split("\n"))
     print(f"\n✓ Combined script complete ({total_lines} lines total)")
 
     return complete_script
-
-
-def generate_bot_script_old(game_title, controls_info):
-    """
-    OLD SINGLE-STAGE GENERATION (kept for reference)
-    Generate a Python bot script using LLM
-
-    Args:
-        game_title: Name of the game
-        controls_info: Game controls information
-
-    Returns:
-        str: Generated Python bot script code
-    """
-    # Get LLM configuration
-    llm_model = config.LLM_MODEL
-    llm_provider = config.LLM_PROVIDER
-    api_key = os.environ.get("API_KEY")
-
-    if not api_key or api_key == "your-api-key-here":
-        print(f"\nERROR: API_KEY not configured for provider: {llm_provider}")
-        print("Edit .env file and add your API key")
-        return None
-
-    client = Anthropic(api_key=api_key)
-
-    print(f"\nGenerating bot script for {game_title} using {llm_model}...")
-
-    prompt = f"""Create a complete, functional Python bot script for "{game_title}" that uses YOLO object detection and pynput keyboard control.
-
-GAME CONTROLS REFERENCE:
-{controls_info}
-
-REQUIREMENTS - The script MUST include:
-
-1. **YOLO Model Integration**:
-   - Load model from: 'runs/detect/paper_engine_model/weights/best.pt'
-   - Run inference on each frame
-   - Parse detections (class names, confidence, bounding boxes)
-   - Handle empty detections gracefully
-
-2. **Screen Capture**:
-   - Use mss library for fast screenshot capture
-   - Capture game window region (configurable)
-   - Convert to format YOLO expects (RGB numpy array)
-
-3. **Keyboard Control with pynput**:
-   - Create keyboard Controller instance
-   - Parse the game controls from above
-   - Create helper methods for each action:
-     * press_key(key, duration=0.1) - press and release
-     * hold_key(key) - press and hold
-     * release_key(key) - release held key
-   - Map game actions to keyboard keys based on controls
-
-4. **Decision Making Logic**:
-   - Analyze YOLO detections each frame
-   - Create decision tree based on what's detected:
-     * If enemy detected → attack or dodge
-     * If obstacle detected → jump or avoid
-     * If item detected → move towards it
-     * If nothing detected → explore/move forward
-   - Use bounding box positions to decide direction
-
-5. **Bot Class Structure**:
-```python
-class GameBot:
-    def __init__(self):
-        self.model = None  # YOLO model
-        self.keyboard = Controller()
-        self.running = True
-        self.screen_region = {{"top": 0, "left": 0, "width": 1920, "height": 1080}}
-
-    def load_model(self):
-        # Load YOLO model
-
-    def capture_screen(self):
-        # Capture screenshot using mss
-        # Return numpy array
-
-    def detect_objects(self, frame):
-        # Run YOLO inference
-        # Return list of detections with class, confidence, bbox
-
-    def make_decision(self, detections):
-        # Analyze detections
-        # Return action to take
-
-    def execute_action(self, action):
-        # Use pynput to press keys
-        # Based on game controls
-
-    def run(self):
-        # Main game loop
-        # Capture → Detect → Decide → Act
-        # Include FPS limiting (30 FPS)
-```
-
-6. **Emergency Stop**:
-   - Use pynput Listener to detect ESC key
-   - Set self.running = False when ESC pressed
-   - Clean exit from game loop
-
-7. **Key Implementation Details**:
-   - FPS limit: time.sleep() between frames
-   - Key press duration: ~0.1 seconds for tap, longer for holds
-   - Confidence threshold: 0.5 for detections
-   - Add print statements for debugging (what was detected, what action taken)
-
-8. **Example Action Mapping** (adapt to actual controls):
-```python
-def move_left(self):
-    self.keyboard.press('a')
-    time.sleep(0.1)
-    self.keyboard.release('a')
-```
-
-Return ONLY the complete, functional Python code with:
-- All imports at the top
-- GameBot class with all methods implemented
-- if __name__ == "__main__" block to run the bot
-- Comprehensive comments explaining logic
-- Error handling for model loading and screen capture
-
-Make it production-ready and directly executable."""
-
-    try:
-        response = client.messages.create(
-            model=llm_model,
-            max_tokens=8192,
-            messages=[{
-                "role": "user",
-                "content": prompt
-            }]
-        )
-
-        script_code = response.content[0].text
-
-        # Extract Python code if wrapped in markdown
-        if "```python" in script_code:
-            script_code = script_code.split("```python")[1].split("```")[0].strip()
-        elif "```" in script_code:
-            script_code = script_code.split("```")[1].split("```")[0].strip()
-
-        return script_code
-
-    except Exception as e:
-        print(f"ERROR: Failed to generate bot script: {e}")
-        return None
 
 
 def save_bot_script(game_title, script_code):
@@ -805,19 +701,23 @@ def save_bot_script(game_title, script_code):
     scripts_dir.mkdir(exist_ok=True)
 
     # Sanitize filename
-    safe_title = "".join(c for c in game_title if c.isalnum() or c in (' ', '_')).strip()
-    safe_title = safe_title.replace(' ', '_').lower()
+    safe_title = "".join(
+        c for c in game_title if c.isalnum() or c in (" ", "_")
+    ).strip()
+    safe_title = safe_title.replace(" ", "_").lower()
     script_path = scripts_dir / f"{safe_title}_bot.py"
 
     # Write script
-    with open(script_path, 'w') as f:
+    with open(script_path, "w") as f:
         f.write(script_code)
 
     return script_path
 
 
 def main():
-    """Main execution"""
+    """Main execution (standalone CLI entry point)"""
+    _ensure_env_loaded()
+
     print("=" * 60)
     print(f"Game Controls Finder - Powered by {config.LLM_MODEL}")
     print("=" * 60)
