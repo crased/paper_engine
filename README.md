@@ -13,7 +13,7 @@
 >
 > **Use at your own risk. This is a research/educational project.**
 
-A game automation and computer vision framework that combines Wine game execution, screenshot capture, Label Studio annotation, and YOLO object detection to build intelligent game bots. Designed for bug detection, exploit identification, automated testing, and game development research.
+A game automation and computer vision framework that combines Wine game execution, screenshot capture, built-in annotation, and YOLO object detection to build intelligent game bots. Designed for bug detection, exploit identification, automated testing, and game development research.
 
 ## What It Does
 
@@ -21,7 +21,7 @@ Paper Engine automates the complete pipeline for creating game bots:
 
 1. **Game Execution**: Runs game executables (Windows via Wine, Linux native, scripts)
 2. **Screenshot Capture**: Automatically captures gameplay screenshots every 5 seconds
-3. **Annotation**: Label Studio integration for object detection annotation
+3. **Annotation**: Built-in annotation tool for object detection labelling
 4. **Model Training**: Converts annotations to YOLO format and trains YOLO11 models
 5. **Controls Discovery**: AI-powered web search for game controls
 6. **Bot Generation**: Automatically generates Python bot scripts using YOLO + controls
@@ -62,7 +62,7 @@ Paper Engine is designed for legitimate game testing, research, and development:
 
 ## Features
 
-- **Annotation**: Label Studio integration for annotating game objects in captured screenshots
+- **Annotation**: Built-in annotation tool with coloured bounding boxes, class labels, and YOLO format export
 - **AI-Generated Bot Scripts**: AI searches for game controls and generates Python bot scripts with YOLO inference
 - **Configurable Screenshot Capture**: Automated gameplay capture with configurable intervals via flameshot
 - **Screenshot Soft Limit**: Automatically pauses at 201 screenshots and prompts to continue or stop
@@ -112,7 +112,6 @@ pip install pynput python-dotenv pyyaml
 
 **Heavy packages (install manually when needed):**
 ```bash
-pip install label-studio    # For annotation (Step 2)
 pip install ultralytics      # For YOLO training (Step 3)
 ```
 
@@ -146,7 +145,6 @@ pip install ultralytics      # For YOLO training (Step 3)
    pip install -r information/requirements.txt
 
    # Install heavy packages manually when needed:
-   pip install label-studio    # For annotation
    pip install ultralytics      # For YOLO training
 
    # LLM provider will be installed by the script when you choose one
@@ -280,9 +278,9 @@ The script will automatically:
 Paper Engine will guide you through a complete 5-step workflow:
 
 1. **Launch game?** → Play for a few minutes to capture screenshots
-2. **Label Studio?** → Annotate objects in screenshots (10 sec countdown, press any key to skip)
+2. **Annotate?** → Draw bounding boxes on screenshots to label game objects
 3. **Train YOLO?** → Train object detection model
-4. **Test model?** → Verify detection works
+4. **Review Results?** → Verify detection works, correct predictions
 5. **Generate bot?** → AI creates bot script (automatically searches for controls)
 
 After completion, your bot is ready to run:
@@ -313,12 +311,6 @@ python generate_bot_script.py
 python training_model.py
 ```
 
-**Launch Label Studio manually:**
-```bash
-label-studio start --port 8080
-# Access at http://localhost:8080
-```
-
 ### Run Your Bot
 
 After completing the pipeline:
@@ -334,7 +326,7 @@ Press ESC to stop the bot.
 paper_engine/
 ├── game/                    # Place game executables here (.exe, .sh, .py, or native)
 ├── screenshots/             # Auto-captured screenshots
-├── dataset/                 # Label Studio annotations (JSON)
+├── dataset/                 # Legacy annotations (JSON)
 ├── yolo_dataset/           # YOLO-formatted dataset
 ├── runs/detect/            # Trained models
 ├── conf/                   # Configuration files
@@ -357,7 +349,7 @@ paper_engine/
 - Screenshots saved every 5 seconds during gameplay to `screenshots/`
 
 ### YOLO Training Pipeline
-1. **Convert**: Label Studio JSON → YOLO format (normalized bboxes)
+1. **Convert**: Annotations → YOLO format (normalized bboxes)
 2. **Prepare**: Split dataset into train/val (80/20)
 3. **Train**: YOLO11n model (50 epochs, batch size 16)
    - YOLO11 benefits: 5x faster training, 36% faster CPU inference vs YOLOv8
@@ -571,7 +563,7 @@ Manual testing workflow:
 2. Run `python main.py`
 3. Play game briefly, then close
 4. Verify screenshots in `screenshots/`
-5. Annotate in Label Studio (optional)
+5. Click "Annotate" to label screenshots (optional)
 6. Train model and verify output
 7. Generate and test bot script
 
@@ -587,7 +579,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 - Uses [Flameshot](https://flameshot.org/) for screenshot capture on Linux
 - Uses [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
-- Uses [Label Studio](https://labelstud.io/) for annotation
+- Uses a built-in CustomTkinter annotation tool for labelling
 - Uses [Google Gemini AI](https://ai.google.dev/) (default, free tier) for controls search and bot generation
 - Optional support for [Anthropic Claude](https://claude.ai) and [OpenAI GPT](https://openai.com) models
 - Tested with Cuphead by Studio MDHR

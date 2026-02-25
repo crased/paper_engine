@@ -56,7 +56,7 @@ def check_packages():
 
 def check_system_tools():
     """Return {tool: (found, detail)} for platform-required tools."""
-    tools = ["label-studio"]
+    tools = []
     if sys.platform != "win32":
         tools += ["wine", "flameshot"]
     return {
@@ -169,9 +169,9 @@ class PaperEngineGUI(ctk.CTk):
         steps = [
             ("1. Launch Game", self._on_launch_game),
             ("   Stop Capture", self._on_stop_capture),
-            ("2. Label Studio", self._on_label_studio),
+            ("2. Annotate", self._on_annotate),
             ("3. Train Model", self._on_train_model),
-            ("4. Test Model", self._on_test_model),
+            ("4. Review Results", self._on_test_model),
             ("5. Generate Bot", self._on_generate_bot),
         ]
         for i, (text, cmd) in enumerate(steps):
@@ -185,7 +185,7 @@ class PaperEngineGUI(ctk.CTk):
             sb,
             text="Configuration",
             width=170,
-            fg_color="gray30",
+            fg_color="grey30",
             command=self._on_configuration,
         ).grid(row=9, column=0, padx=15, pady=(10, 6))
 
@@ -246,6 +246,8 @@ class PaperEngineGUI(ctk.CTk):
         ctk.CTkButton(bar, text="Clear Log", width=100, command=self._clear_log).pack(
             side="right", padx=5, pady=5
         )
+
+        # row 4 : bot replay footage
 
     # ------------------------------------------------------------------
     # Logging / status (thread-safe)
@@ -469,21 +471,21 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Stopping...")
 
     # ------------------------------------------------------------------
-    # 2. Label Studio
+    # 2. Annotate (in-house annotation tool)
     # ------------------------------------------------------------------
 
-    def _on_label_studio(self):
-        self._run_in_thread(self._label_studio_worker)
+    def _on_annotate(self):
+        from review_results import AnnotationWindow
 
-    def _label_studio_worker(self):
-        from functions import launch_label_studio
+        screenshots_dir = PROJECT_ROOT / "screenshots"
+        if not screenshots_dir.exists() or not any(screenshots_dir.glob("*.png")):
+            self._log("\nERROR: No screenshots found in screenshots/\n")
+            self._log("Capture screenshots first using Launch Game.\n")
+            return
 
-        self._log("\n--- Starting Label Studio ---\n")
-        self._set_status("Label Studio running")
-        env = os.environ.copy()
-        env.update(config.LABEL_STUDIO_ENV)
-        launch_label_studio(env)
-        self._log("Label Studio launched on http://localhost:8080\n")
+        self._log("\n--- Opening Annotation Tool ---\n")
+        self._set_status("Annotating...")
+        AnnotationWindow(self, screenshots_dir=str(screenshots_dir))
 
     # ------------------------------------------------------------------
     # 3. Train Model
@@ -502,20 +504,35 @@ class PaperEngineGUI(ctk.CTk):
         self._set_status("Idle")
 
     # ------------------------------------------------------------------
-    # 4. Test Model
+    # 4. Review Results (was Test Model)
     # ------------------------------------------------------------------
 
     def _on_test_model(self):
         self._run_in_thread(self._test_model_worker)
 
     def _test_model_worker(self):
-        self._log("\n--- Testing Trained Model ---\n")
-        self._set_status("Testing model...")
-        import test_model
+        self._log("\n--- Running Model Inference ---\n")
+        self._set_status("Running inference...")
+        import test_model as tm
 
-        test_model.test_model()
-        self._log("\nModel testing complete.\n")
+        results = tm.test_model()
+        class_names = tm.get_class_names()
+
+        if results is None:
+            self._log("\nInference failed or returned no results.\n")
+            self._set_status("Error")
+            return
+
+        self._log(f"\nInference complete. Opening Review Results...\n")
         self._set_status("Idle")
+
+        # Open the review window on the main thread
+        self.after(0, lambda: self._open_review_window(results, class_names))
+
+    def _open_review_window(self, results, class_names):
+        from review_results import ReviewResultsWindow
+
+        ReviewResultsWindow(self, results, class_names=class_names)
 
     # ------------------------------------------------------------------
     # 5. Generate Bot Script

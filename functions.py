@@ -5,31 +5,6 @@ from pathlib import Path
 import configparser
 
 
-def launch_label_studio(env):
-    """Launch Label Studio for annotation.
-
-    Args:
-        env: Environment dictionary with LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED set
-
-    Returns:
-        subprocess.Popen object for the label-studio process
-    """
-    try:
-        command = ["label-studio", "start", "--port", "8080"]
-        label_process = subprocess.Popen(command, env=env, start_new_session=True)
-        print("\nLabel Studio started on http://localhost:8080")
-        return label_process
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            "label-studio command not found. Install with: pip install label-studio"
-        )
-    except subprocess.SubprocessError as e:
-        raise RuntimeError(
-            f"Failed to start Label Studio: {e}\n"
-            "Try running manually: label-studio start --port 8080"
-        )
-
-
 def get_title(game_path):
     """Extract game title from executable filename.
 

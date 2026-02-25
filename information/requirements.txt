@@ -5,7 +5,7 @@
 # ============================================================
 # This file contains only the core dependencies that install quickly.
 # The script will prompt you to install LLM providers interactively.
-# Heavy packages (label-studio, ultralytics) should be installed manually.
+# Heavy packages (ultralytics) should be installed manually.
 
 # Keyboard and mouse control
 pynput>=1.7.6
@@ -31,7 +31,6 @@ customtkinter>=5.2.0
 #    (The script will detect missing LLM and offer installation)
 #
 # 3. Manually install heavy packages when needed:
-#    pip install label-studio    # For annotation (Step 2)
 #    pip install ultralytics      # For YOLO training (Step 3)
 #
 # ============================================================
