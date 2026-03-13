@@ -34,7 +34,7 @@ The LLM produces a structured report with 1-5 star ratings across Engine Configu
 Primary entry point is the CustomTkinter desktop GUI:
 
 ```bash
-python gui.py
+python gui_app.py
 ```
 
 **Pages:**
@@ -64,7 +64,7 @@ python -m pipeline.game_feedback --session recordings/sessions/Cuphead_20260305_
 ### Bot Pipeline
 
 ```bash
-python gui.py                                      # Main GUI
+python gui_app.py                                      # Main GUI
 python -m pipeline.gameplay_recorder --launch       # Record gameplay session
 python -m pipeline.batch_annotator --session path/  # LLM-annotate session frames
 python -m pipeline.training_model                   # Train YOLO model
