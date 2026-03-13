@@ -1,0 +1,63 @@
+# Paper Engine v1.0 - Python Dependencies
+# Pinned to exact versions for reproducible builds.
+
+# ============================================================
+# CORE DEPENDENCIES
+# ============================================================
+# Install with: pip install -r information/requirements.txt
+
+# Keyboard and mouse control
+pynput==1.8.1
+
+# Environment variable management
+python-dotenv==1.2.1
+
+# YAML parsing for config
+PyYAML==6.0.3
+
+# GUI framework
+customtkinter==5.2.2
+
+# Image handling
+Pillow==12.1.0
+
+# Screen capture
+mss==10.1.0
+
+# OS keyring (credential storage)
+keyring==25.7.0
+
+# ============================================================
+# OPTIONAL: Cloud storage providers (installed on demand via GUI)
+# ============================================================
+# boto3==1.42.30                   # AWS S3
+# azure-storage-blob==12.28.0     # Azure Blob Storage
+# google-api-python-client         # Google Drive (install manually)
+# dropbox                          # Dropbox (install manually)
+# huggingface_hub                  # Hugging Face Hub (install manually)
+
+# ============================================================
+# OPTIONAL: LLM providers (installed on demand via GUI)
+# ============================================================
+# anthropic==0.84.0               # Claude
+# openai==1.109.1                 # GPT
+# google-genai                    # Gemini (free tier)
+
+# ============================================================
+# OPTIONAL: Training (heavy, ~6.5 GB)
+# ============================================================
+# ultralytics==8.4.7              # YOLO11
+# torch==2.10.0+rocm7.1           # PyTorch (ROCm build for AMD GPUs)
+
+# ============================================================
+# INSTALLATION
+# ============================================================
+#
+# 1. Install core deps:
+#    pip install -r information/requirements.txt
+#
+# 2. Run Paper Engine (auto-prompts for LLM provider):
+#    python gui.py
+#
+# 3. Install training packages when needed (via GUI or manually):
+#    pip install ultralytics torch

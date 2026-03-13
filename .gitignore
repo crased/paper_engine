@@ -2,7 +2,7 @@
 game/*
 !game/.gitkeep
 
-# Screenshots
+# Screenshots & video data
 screenshots/*
 !screenshots/.gitkeep
 
@@ -10,7 +10,7 @@ screenshots/*
 dataset/*
 !dataset/.gitkeep
 
-# Pythonint
+# Python
 /env
 venv/
 __pycache__/
@@ -20,7 +20,11 @@ __pycache__/
 .Python
 *.so
 .pytest_cache/
-.env
+.ruff_cache/
+
+# Secrets
+*.env
+
 # YOLO/ML outputs
 /yolo_dataset
 runs/
@@ -30,19 +34,32 @@ runs/
 *.engine
 weights/
 
-# Project specific
+# Generated config (LLM-produced controls)
+conf/cuphead_controls.ini
+
+# Generated outputs
+audit_report.json
+.annotation_stats.json
 game_evens.jsonl
 game_state.jsonl
+mlruns/
+recordings/
+
+# Project specific
 test.py
 todo.md
 commit.md
 CLAUDE.md
 .claude
+.last_game_path
+debug_review/
+bot_debug_frames/
 
 # Internal planning documents
 PROJECT_REPORT.md
 FEATURE_PRIORITY_ANALYSIS.md
 V1.5_ROADMAP.md
+
 # IDE
 .vscode/
 .idea/
@@ -57,9 +74,5 @@ Thumbs.db
 # Logs
 *.log
 
-# Conf
-*.env
-
-# test 
+# Test
 *test_sets/
-

@@ -1,585 +1,230 @@
 # Paper Engine
 
-> **🚀 Quick Start:** New to Paper Engine? See [QUICKSTART.md](information/QUICKSTART.md) for a 5-minute setup guide!
+> **Work in progress.** Active development, expect breaking changes.
 
-> **⚠️ DISCLAIMER: WORK IN PROGRESS**
->
-> This project is currently under active development and is **NOT** production-ready. Expect:
-> - Incomplete features and functionality
-> - Breaking changes without notice
-> - Bugs and stability issues
-> - Incomplete documentation
-> - Experimental code and workflows
->
-> **Use at your own risk. This is a research/educational project.**
-
-A game automation and computer vision framework that combines Wine game execution, screenshot capture, built-in annotation, and YOLO object detection to build intelligent game bots. Designed for bug detection, exploit identification, automated testing, and game development research.
+A game automation, computer vision, and performance analysis framework. Combines Wine game execution, memory reading, YOLO object detection, and LLM-powered game analysis to build intelligent game bots and diagnose game performance issues. Designed for bug detection, automated testing, game QA, and Linux gaming diagnostics.
 
 ## What It Does
 
-Paper Engine automates the complete pipeline for creating game bots:
+Paper Engine has two main systems:
 
-1. **Game Execution**: Runs game executables (Windows via Wine, Linux native, scripts)
-2. **Screenshot Capture**: Automatically captures gameplay screenshots every 5 seconds
-3. **Annotation**: Built-in annotation tool for object detection labelling
-4. **Model Training**: Converts annotations to YOLO format and trains YOLO11 models
-5. **Controls Discovery**: AI-powered web search for game controls
-6. **Bot Generation**: Automatically generates Python bot scripts using YOLO + controls
+### Game Automation Pipeline
+1. **Game Execution** -- Runs game executables (Windows via Wine, Linux native, scripts)
+2. **Memory Reading** -- Reads live game state from Mono/Unity games (HP, scene, loading, etc.)
+3. **Screenshot Capture** -- Captures gameplay at configurable intervals
+4. **Annotation** -- Built-in annotation tool for object detection labelling
+5. **YOLO Training** -- Trains YOLO11/YOLO26 models on annotated gameplay data
+6. **Bot Generation** -- LLM generates Python bot scripts using YOLO + game controls
+7. **Self-Learning** -- Automated play-annotate-train loop
 
-Supports Windows games (.exe via Wine), Linux native executables, shell scripts (.sh), and Python games (.py).
-Currently tested with Cuphead, but designed to work with any game executable.
+### Multi-Source Game Performance Analysis
+Analyzes any game's performance by collecting data from up to 6 sources:
 
-## Use Cases
+1. **Engine configs** -- Scans game directory for .ini, .cfg, .log, benchmark data
+2. **Engine detection** -- Identifies UE3, UE4, Unity, Void Engine/id Tech from directory structure and executables
+3. **Community data** -- Fetches ProtonDB API for compatibility ratings and report counts
+4. **Wine/DXVK prefix scan** -- Reads Proton version, DXVK state cache size, DLL overrides, environment variables
+5. **Known fix detection** -- Checks for game-specific community fixes (e.g. Arkham Quixote for Batman AK)
+6. **LLM analysis** -- Feeds all sources to an LLM acting as a game engine QA expert
 
-Paper Engine is designed for legitimate game testing, research, and development:
+The LLM produces a structured report with 1-5 star ratings across Engine Configuration, Runtime Environment, Known Issues & Fixes, and Performance Architecture -- with file-referenced issues and actionable fix suggestions.
 
-### 1. **Bug & Exploit Detection** (Primary Use Case)
-- **Automated Testing**: Train bots to repeatedly test game mechanics and boundary conditions
-- **Glitch Discovery**: Detect visual anomalies, clipping issues, and rendering bugs through object detection
-- **Exploit Identification**: Identify unintended game behaviors and sequence breaks
-- **Regression Testing**: Verify bug fixes by automating reproduction steps
-- **QA Automation**: Supplement manual testing with automated gameplay coverage
+## GUI
 
-### 2. **Game Development & QA**
-- Automated playtesting for indie developers
-- Performance testing under various gameplay scenarios
-- Balance testing for game mechanics
-
-### 3. **AI & Computer Vision Research**
-- Game state recognition and object detection
-- Reinforcement learning for game AI
-- Educational tool for teaching computer vision concepts
-
-### 4. **Speedrunning & Optimization**
-- Route optimization and strategy testing
-- Frame-perfect input analysis
-- Glitch documentation for speedrunning communities
-
-**Note:** This tool is intended for **single-player games** and **authorized testing only**. Do not use for:
-- Multiplayer games or competitive advantage
-- Violating game terms of service
-- Unauthorized exploitation of online games
-
-## Features
-
-- **Annotation**: Built-in annotation tool with coloured bounding boxes, class labels, and YOLO format export
-- **AI-Generated Bot Scripts**: AI searches for game controls and generates Python bot scripts with YOLO inference
-- **Configurable Screenshot Capture**: Automated gameplay capture with configurable intervals via flameshot
-- **Screenshot Soft Limit**: Automatically pauses at 201 screenshots and prompts to continue or stop
-
-## To Be Implemented
-
-- Admin dashboard (web UI for monitoring bot performance, managing sessions, viewing metrics)
-- Data-driven semi self-improving bot scripts using LLM (bots that learn from gameplay data and refine their logic)
-- Notification/ping when screenshot soft limit is reached (audio alert or system notification)
-- Screen recording of bot actions (record bot gameplay for analysis/demonstration)
-- Video training datasets
-- Bot script repository for sharing game scripts
-
-## Requirements
-
-> **⚠️ PLATFORM SUPPORT:**
-> Paper Engine supports **Linux and macOS**. Windows support is planned for future releases.
-
-### System Requirements
-- **OS**: Linux or macOS
-  - **Linux**: ✅ Fully supported (tested on Arch Linux with Wayland)
-  - **macOS**: ✅ Supported (uses native screencapture, Wine via Homebrew)
-  - **Windows**: ❌ Not supported yet (planned for future releases)
-- **Wine**: For running Windows game executables
-  - **Linux**: Install via package manager (`apt`, `pacman`, `dnf`)
-  - **macOS**: Install via Homebrew (`brew install wine-stable`)
-- **Screenshot tool**: Platform-specific (automatically detected)
-  - **Linux**: `flameshot` (recommended), `scrot` (fallback), or `imagemagick` (fallback)
-  - **macOS**: `flameshot` (recommended via Homebrew), native `screencapture` (built-in fallback)
-  - **Windows**: PIL/ImageGrab (not yet supported)
-- **Python**: 3.8+
-
-### Python Dependencies
-
-Paper Engine will automatically detect and offer to install missing dependencies on first run.
-
-**Core dependencies (required):**
-```bash
-pip install pynput python-dotenv pyyaml
-```
-
-**LLM providers (installed by script when you choose one):**
-- The script will detect missing LLM and prompt you to install one
-- Google Gemini (free tier) - Recommended
-- Anthropic Claude (paid)
-- OpenAI GPT (paid)
-
-**Heavy packages (install manually when needed):**
-```bash
-pip install ultralytics      # For YOLO training (Step 3)
-```
-
-## Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd paper_engine
-   ```
-
-2. **Create virtual environment**
-   ```bash
-   python -m venv env
-   source env/bin/activate
-   ```
-
-3. **Install dependencies**
-
-   **Option A: Automatic (recommended)**
-
-   ```bash
-   # Just run Paper Engine - it will prompt you to install missing packages
-   ./paperengine
-   ```
-
-   **Option B: Manual**
-
-   ```bash
-   # Install core dependencies
-   pip install -r information/requirements.txt
-
-   # Install heavy packages manually when needed:
-   pip install ultralytics      # For YOLO training
-
-   # LLM provider will be installed by the script when you choose one
-   ```
-
-4. **Add your game**
-
-   Paper Engine supports multiple game types. Choose the method that matches your game:
-
-   **For Windows Games (.exe files via Wine):**
-
-   ⚠️ **Important:** You need the entire game folder (with all DLLs), not just the .exe
-
-   **Option A: Copy entire folder**
-   ```bash
-   # Copy entire game directory
-   cp -r /path/to/Cuphead/ game/
-   # Result: game/Cuphead/ with all files
-   ```
-
-   **Option B: Symlink (recommended, saves space)**
-   ```bash
-   # Create symlink to game installation
-   ln -s /path/to/Cuphead game/Cuphead
-   # Result: game/Cuphead/ pointing to original location
-   ```
-
-   **For Shell Script Games (.sh files):**
-   ```bash
-   # Copy or move your shell script
-   cp /path/to/mygame.sh game/
-   # Make sure it's executable
-   chmod +x game/mygame.sh
-   ```
-
-   **For Python Games (.py files):**
-   ```bash
-   # Copy or move your Python game
-   cp /path/to/mygame.py game/
-   # Optionally mark as executable
-   chmod +x game/mygame.py
-   ```
-
-   **For Native Linux Games (no extension):**
-   ```bash
-   # Copy the executable
-   cp /path/to/mygame game/
-   # Ensure it has execute permissions
-   chmod +x game/mygame
-   ```
-
-   The script will auto-detect executables in the `game/` directory and let you choose if multiple are found.
-
-5. **Configure AI API key** (optional - for bot generation features)
-
-   > **⚠️ API KEY SECURITY WARNING**
-   >
-   > - **NEVER share your API key** with anyone
-   > - **NEVER commit your `.env` file** to git/version control
-   > - **NEVER push API keys** to GitHub or any public repository
-   > - **Create separate API keys** for each project/environment
-   > - **Immediately revoke and regenerate** if your key is exposed
-   >
-   > Your API key is linked to your billing account. Exposed keys can lead to unauthorized usage and charges.
-
-   **Default: Google Gemini (Free Tier)**
-
-   Paper Engine uses Google Gemini by default, which offers a generous free tier:
-
-   ```bash
-   # Get a free API key:
-   # 1. Visit https://aistudio.google.com/apikey
-   # 2. Click "Create API Key"
-   # 3. Copy your key
-   ```
-
-   Then configure:
-   ```bash
-   # Run main.py to auto-generate .env file
-   python main.py
-
-   # Edit .env and add your Google API key
-   nano .env  # or use any text editor
-   # Add: API_KEY=your-google-api-key-here
-   ```
-
-   **Optional: Use Advanced Models**
-
-   For more powerful AI capabilities, you can switch to paid models:
-
-   | Provider | Model | Cost | API Key |
-   |----------|-------|------|---------|
-   | **Google** | Gemini 2.0 Flash | **Free tier** | [Get key](https://aistudio.google.com/apikey) |
-   | Anthropic | Claude Opus/Sonnet | Paid | [Get key](https://console.anthropic.com/settings/keys) |
-   | OpenAI | GPT-4/GPT-3.5 | Paid | [Get key](https://platform.openai.com/api-keys) |
-
-   **When you first run Paper Engine**, it will prompt you to choose an LLM provider and automatically update `conf/main_conf.ini` with your choice.
-
-   To manually switch providers later:
-   ```bash
-   # Option 1: Reinstall with a different provider
-   ./paperengine  # Choose a different LLM when prompted
-
-   # Option 2: Manually edit conf/main_conf.ini
-   nano conf/main_conf.ini
-
-   # Change the [LLM] section:
-   [LLM]
-   llm_provider = anthropic  # or: openai, google
-   llm_model = claude-sonnet-4-5-20250514  # or: gpt-4, gemini-2.0-flash-exp
-
-   # Then update your API_KEY in .env with the new provider's key
-   ```
-
-## Usage
-
-### Quick Start
+Primary entry point is the CustomTkinter desktop GUI:
 
 ```bash
-./paperengine
+python gui.py
 ```
 
-The script will automatically:
-- Create virtual environment if missing
-- Activate the environment
-- Offer to install dependencies
-- Launch Paper Engine
+**Pages:**
+- **Home** -- Quick-action cards, system status
+- **Metrics** -- KPI cards, training metrics, dataset stats, model comparison, session history
+- **Test** -- Game launching, session recording, live memory state
+- **Tools** -- Pipeline operations (Annotate, Train, Import, Verify, Generate Bot, Game Report, Dir Report), label management
+- **Settings** -- LLM provider config, memory reader info, paths
 
-### What Happens Next?
+**Dir Report** (Tools page) opens a dialog to select a game directory and optional Wine prefix, runs the full 6-source analysis, and caches the raw data as JSON for later LLM use.
 
-Paper Engine will guide you through a complete 5-step workflow:
+## CLI
 
-1. **Launch game?** → Play for a few minutes to capture screenshots
-2. **Annotate?** → Draw bounding boxes on screenshots to label game objects
-3. **Train YOLO?** → Train object detection model
-4. **Review Results?** → Verify detection works, correct predictions
-5. **Generate bot?** → AI creates bot script (automatically searches for controls)
-
-After completion, your bot is ready to run:
-```bash
-python bot_scripts/<game_name>_bot.py
-```
-Press **ESC** to stop the bot.
-
-### Manual Start
+### Game Performance Report
 
 ```bash
-# Activate virtual environment
-source env/bin/activate
+# Multi-source directory analysis (any game)
+python -m pipeline.game_feedback --game-dir /path/to/game/
+python -m pipeline.game_feedback --game-dir /path/to/game/ --prefix /path/to/wine/prefix/
+python -m pipeline.game_feedback --game-dir /path/to/game/ --export report.txt
+python -m pipeline.game_feedback --game-dir /path/to/game/ --json
 
-# Run Paper Engine
-python main.py
+# Session-based analysis (Mono/Unity games with memory telemetry)
+python -m pipeline.game_feedback --session recordings/sessions/Cuphead_20260305_073118/
 ```
 
-### Standalone Utilities
+### Bot Pipeline
 
-**Generate controls and bot script only:**
 ```bash
-python generate_bot_script.py
+python gui.py                                      # Main GUI
+python -m pipeline.gameplay_recorder --launch       # Record gameplay session
+python -m pipeline.batch_annotator --session path/  # LLM-annotate session frames
+python -m pipeline.training_model                   # Train YOLO model
+python -m pipeline.generate_bot_script              # Generate bot script
+python bot_logic/bot_scripts/cuphead_bot.py --launch  # Run unified bot
 ```
-
-**Train model manually:**
-```bash
-python training_model.py
-```
-
-### Run Your Bot
-
-After completing the pipeline:
-```bash
-python bot_scripts/<game_name>_bot.py
-```
-
-Press ESC to stop the bot.
 
 ## Project Structure
 
 ```
 paper_engine/
-├── game/                    # Place game executables here (.exe, .sh, .py, or native)
-├── screenshots/             # Auto-captured screenshots
-├── dataset/                 # Legacy annotations (JSON)
-├── yolo_dataset/           # YOLO-formatted dataset
-├── runs/detect/            # Trained models
-├── conf/                   # Configuration files
-│   ├── main_conf.ini       # Main settings
-│   └── <game>_controls.ini # Game controls (auto-generated)
-├── bot_scripts/            # Generated bot scripts
-│   └── <game>_bot.py       # Executable bot (auto-generated)
-├── main.py                 # Main workflow
-├── generate_bot_script.py  # Controls search & bot generation
-├── training_model.py       # YOLO training pipeline
-├── screencapture.py        # Screenshot capture system
-└── game_exe_func.py        # Game executable discovery
+  gui.py                          # Entry point (CustomTkinter GUI)
+  gui_app.py                      # Main app frame, sidebar, page routing
+  gui_pages/
+    home.py                       # Home page -- quick-action cards, status
+    dashboard.py                  # Metrics/KPI dashboard
+    session.py                    # Test/session page
+    tools.py                      # Pipeline tools + Dir Report + label mgmt
+    settings.py                   # Settings page
+  gui_components/
+    theme.py                      # Design tokens (colors, spacing, typography)
+    step_log.py                   # Step log widget
+    dialogs.py                    # Modal dialog helpers
+
+  pipeline/
+    game_feedback.py              # Multi-source game analysis engine
+    gameplay_recorder.py          # Screenshot + memory state capture
+    batch_annotator.py            # LLM annotation of recorded sessions
+    training_model.py             # YOLO training
+    generate_bot_script.py        # LLM bot script generation
+    self_learning.py              # Play-annotate-train orchestrator
+
+  tools/
+    functions.py                  # Path helpers, API key (keyring + .env)
+    memory_reader.py              # Linux process_vm_readv wrapper
+    mono_external.py              # External Mono metadata walker
+    game_state.py                 # Config-driven game state reader
+    mono_bridge.c / .so           # LD_PRELOAD bridge for Mono base detection
+    screencapture.py              # Screenshot capture (flameshot/mss/PIL)
+
+  bot_logic/
+    bot_scripts/
+      cuphead_bot.py              # Three-domain bot (Read-Fuse-Dispatch-Act)
+      domains/
+        contracts.py              # Shared data contracts (GamePhase, WorldState)
+        detection.py              # YOLO background thread
+        navigation.py             # Menu/map navigation
+        strategy.py               # Combat (survive>evade>engage>advance)
+    models/                       # Trained YOLO models
+
+  conf/
+    main_conf.ini                 # LLM provider, capture settings
+    training_conf.ini             # YOLO training params
+    game_configs/
+      cuphead.py                  # Cuphead pointer chains + field defs
+
+  yolo_dataset/                   # YOLO training data (12 classes)
+  recordings/sessions/            # Recorded gameplay sessions
+  reports/                        # Generated analysis reports
+    cache/                        # Cached report JSON for LLM reuse
 ```
 
 ## Architecture
 
-### Screenshot Capture
-- **Linux (Wayland)**: Uses `flameshot` CLI with display server configuration
-- **Windows**: Falls back to PIL ImageGrab (not actively tested)
-- Screenshots saved every 5 seconds during gameplay to `screenshots/`
+### Memory Reading (Mono/Unity)
 
-### YOLO Training Pipeline
-1. **Convert**: Annotations → YOLO format (normalized bboxes)
-2. **Prepare**: Split dataset into train/val (80/20)
-3. **Train**: YOLO11n model (50 epochs, batch size 16)
-   - YOLO11 benefits: 5x faster training, 36% faster CPU inference vs YOLOv8
-4. **Export**: TorchScript and ONNX formats
-- Output: `runs/detect/paper_engine_model/weights/best.pt`
+Four-layer system for reading live game state from any Mono-based Unity game:
 
-### AI Bot Generation
+1. **memory_reader.py** -- Linux `process_vm_readv` wrapper (game-agnostic)
+2. **mono_external.py** -- Walks Mono runtime C structs externally (domains, assemblies, classes, fields, vtables)
+3. **game_state.py** -- Config-driven reader using pointer chains (`ChainStep`). Follows static/instance fields, C# collections (Dict/List/Array)
+4. **game_configs/*.py** -- Per-game field definitions (pure data, no logic)
 
-Uses AI (default: Google Gemini - free tier) to:
-1. Search web for game keyboard/mouse controls
-2. Generate complete Python bot scripts with:
-   - YOLO model inference
-   - Real-time screenshot capture
-   - Decision-making logic
-   - Game control via pynput
-   - Emergency stop (ESC)
+### Three-Domain Bot
 
-Supports multiple LLM providers: Google Gemini (free), Anthropic Claude (paid), OpenAI GPT (paid)
+```
+READ  -- Memory (HP, scene, phase) + YOLO (spatial detections)
+FUSE  -- classify_phase() + fuse() -> WorldState
+DISPATCH -- LEVEL_PLAYING -> Strategy, else -> Navigation
+ACT   -- Key hold/release via xdg-portal RemoteDesktop
+```
 
-## Known Issues & Limitations
+### Multi-Source Game Analysis
 
-> **⚠️ UNFINISHED FEATURES**
->
-> - **Limited platform testing**: Only tested on Linux/Wayland
-> - **Windows support**: Screenshot capture not verified on Windows
-> - **Wine compatibility**: Not all games may work via Wine
-> - **Bot intelligence**: Generated bots have basic logic, may need manual refinement
-> - **Model accuracy**: Requires substantial annotated data for good performance
-> - **Error handling**: Minimal error handling in some components
-> - **Configuration**: Limited customization options
-> - **Testing**: No formal test suite exists
+```
+game_feedback.py
+  _scan_game_dir()       -- Source 1: config/log files
+  detect_engine()        -- Source 2: UE3/UE4/Unity/Void/id Tech detection
+  fetch_protondb()       -- Source 3: ProtonDB API
+  scan_wine_prefix()     -- Source 4: Proton version, DXVK cache, DLL overrides
+  detect_known_fixes()   -- Source 5: game-specific community fix detection
+  _build_dir_system_prompt()  -- Dynamic prompt (adapts to engine type + available data)
+  generate_report_from_dir()  -- Orchestrator (calls all sources, feeds LLM)
+```
 
-## Security Notes
+## Supported Engines
 
-### API Key Protection
+| Engine | Detection Method | Config Patterns |
+|--------|-----------------|-----------------|
+| Unreal Engine 3 | `Engine/` + `*Game/` dirs | `**/Config/*.ini`, benchmarks |
+| Unreal Engine 4 | `Content/Paks/`, `.uproject` | `**/Config/*.ini`, GameUserSettings |
+| Unity | `*_Data/Managed/UnityEngine.dll` | `*_Data/*.cfg`, boot.config |
+| Void Engine / id Tech | `base/` dir + GFSDK DLLs | `base/*.cfg` |
+| Unknown | Fallback generic analysis | Any `.ini`, `.cfg`, `.log` found |
 
-**CRITICAL: Protect Your API Keys**
+## Requirements
 
-- ✅ API keys stored in `.env` file (automatically excluded from git)
-- ✅ `.env` auto-generated on first run with placeholder
-- ❌ **NEVER share your API keys** with anyone
-- ❌ **NEVER commit `.env` to version control** (git, GitHub, etc.)
-- ❌ **NEVER push or branch repositories** containing real API keys
-- ❌ **NEVER hardcode API keys** in source code
+- **OS**: Linux (tested on Arch/Wayland). macOS partially supported. Windows not supported.
+- **Python**: 3.8+
+- **Wine**: For running Windows games
+- **LLM provider**: Anthropic Claude (default), Google Gemini, or OpenAI
 
-**If your API key is exposed:**
-1. Immediately revoke the key in your provider's console
-2. Generate a new API key
-3. Update your `.env` file with the new key
-4. If pushed to git: Use `git filter-branch` or BFG Repo-Cleaner to remove from history
+### Python Dependencies
 
-**Best Practices:**
-- Use separate API keys for development and production
-- Set usage limits in your provider's console
-- Monitor your API usage regularly
-- Review `.gitignore` to ensure `.env` is excluded
-- Rotate API keys periodically
+```bash
+pip install pynput python-dotenv pyyaml customtkinter anthropic
+pip install ultralytics  # For YOLO training
+```
+
+## Security
+
+### API Keys
+- Stored in OS keyring (SecretService/libsecret) via `tools/functions.py`
+- Falls back to `.env` file (gitignored)
+- Never logged, never written to reports or cache files
+- Passed directly to LLM client only
+
+### File Scanning
+- Game directory scanning uses `glob()` confined to the target directory
+- `relative_to()` enforces path containment
+- Content capped at 60KB total with per-file line limits
+- Encoding fallback chain (UTF-8, UTF-16, latin-1) prevents decode crashes
+
+### Network
+- ProtonDB API: integer AppIDs from a hardcoded static dictionary, no user input in URLs
+- Static User-Agent header, 10s timeout
+- All network calls fail gracefully (report continues with available data)
 
 ### Executable Security
+Paper Engine executes game files with user privileges. Only run games from trusted sources. See the executable security notes below for details.
 
-**CRITICAL: Code Execution Risks**
+> **Never run executables from untrusted sources.** Wine .exe files, shell scripts, and Python scripts execute with full user permissions.
 
-Paper Engine executes game files with your user privileges. This includes:
-- **Windows .exe files** via Wine
-- **Shell scripts (.sh)** via bash
-- **Python scripts (.py)** via python interpreter
-- **Native Linux executables** with direct execution
+## Tested Games
 
-⚠️ **Security Warnings:**
-- ❌ **NEVER run games/executables from untrusted sources**
-- ❌ **NEVER place unknown scripts in the game/ directory**
-- ❌ **ALWAYS verify game files before running Paper Engine**
-- ✅ **Only use games from legitimate sources** (Steam, GOG, official stores)
-- ✅ **Review any .sh or .py files** before placing them in game/
-- ✅ **Ensure your game/ directory is secure** and not world-writable
-
-**Potential Risks:**
-- Malicious scripts could access your files, install malware, or compromise your system
-- Shell scripts and Python scripts execute with full user permissions
-- Games can read/write files, make network connections, and execute system commands
-
-**Best Practices:**
-- Only download games from trusted, official sources
-- Inspect any custom scripts before adding them to game/
-- Run Paper Engine in a limited user account or virtual machine for untrusted games
-- Keep backups of important data
-- Monitor game/ directory for unexpected files
-- Review generated bot scripts before running them
-
-## Troubleshooting
-
-### "Permission denied: ./paperengine"
-```bash
-chmod +x paperengine
-./paperengine
-```
-
-### "python not found"
-Try `python3` instead:
-```bash
-python3 main.py
-```
-
-### Game won't launch: "Library [DLL] not found"
-You need the entire game folder, not just the .exe:
-
-```bash
-# Wrong: Just copying .exe
-cp /path/to/Cuphead/Cuphead.exe game/
-
-# Correct Option 1: Copy entire game folder
-cp -r /path/to/Cuphead/ game/
-
-# Correct Option 2: Symlink (saves space)
-ln -s /path/to/Cuphead game/Cuphead
-```
-
-Games like Cuphead (Unity games) need their DLL files and data folders to run.
-The symlink creates a pointer to your game installation without copying.
-
-### Script/executable won't launch: "Permission denied"
-Your shell script or native executable needs execute permissions:
-
-```bash
-# For shell scripts
-chmod +x game/mygame.sh
-
-# For native Linux executables
-chmod +x game/mygame
-
-# Check permissions
-ls -la game/
-# Should show: -rwxr-xr-x (x = executable)
-```
-
-### Python game won't launch: "python: command not found"
-Install Python or try `python3`:
-
-```bash
-# Install Python 3
-sudo apt install python3        # Ubuntu/Debian
-sudo pacman -S python          # Arch
-sudo dnf install python3       # Fedora
-
-# Or edit main.py to use python3 instead of python
-```
-
-### No game executables found
-Make sure your game is in the `game/` directory:
-
-```bash
-# Check what's in the game folder
-ls -la game/
-
-# For Windows games: Need entire folder with .exe
-# For scripts: Need .sh or .py file
-# For native: Need executable file with proper permissions
-```
-
-### Missing system tools
-
-**Linux:**
-```bash
-# Install Wine (for running Windows games)
-sudo apt install wine         # Ubuntu/Debian
-sudo pacman -S wine          # Arch
-sudo dnf install wine        # Fedora
-
-# Install screenshot tool (choose one, flameshot recommended)
-# Flameshot (default, best for Wayland)
-sudo apt install flameshot    # Ubuntu/Debian
-sudo pacman -S flameshot     # Arch
-sudo dnf install flameshot   # Fedora
-
-# OR scrot (alternative)
-sudo apt install scrot        # Ubuntu/Debian
-sudo pacman -S scrot         # Arch
-sudo dnf install scrot       # Fedora
-
-# OR ImageMagick (alternative)
-sudo apt install imagemagick  # Ubuntu/Debian
-sudo pacman -S imagemagick   # Arch
-sudo dnf install imagemagick # Fedora
-```
-
-**macOS:**
-```bash
-# Install Homebrew (if not already installed)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install Wine (for running Windows games)
-brew install wine-stable
-
-# Install Flameshot (recommended for consistency with Linux)
-brew install flameshot
-# Note: Built-in 'screencapture' works as fallback if flameshot not installed
-```
-
-### Dependencies not installing
-
-Manual installation:
-```bash
-source env/bin/activate
-pip install -r requirements.txt
-```
-
-## Testing
-
-Manual testing workflow:
-1. Place game executable in `game/` (.exe, .sh, .py, or native Linux executable)
-2. Run `python main.py`
-3. Play game briefly, then close
-4. Verify screenshots in `screenshots/`
-5. Click "Annotate" to label screenshots (optional)
-6. Train model and verify output
-7. Generate and test bot script
-
-## Contributing
-
-This is an experimental project. Contributions welcome, but expect breaking changes.
+| Game | Engine | Analysis Mode | Notes |
+|------|--------|--------------|-------|
+| Cuphead | Unity (Mono) | Session + Directory | Full memory telemetry, pointer chains defined |
+| Batman: Arkham Knight | UE3 | Directory | 6-source analysis, Arkham Quixote detection |
+| Dishonored 2 | Void Engine | Directory | GameWorks SSAO detection, virtual texturing analysis |
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache License 2.0 -- see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- Uses [Flameshot](https://flameshot.org/) for screenshot capture on Linux
-- Uses [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
-- Uses a built-in CustomTkinter annotation tool for labelling
-- Uses [Google Gemini AI](https://ai.google.dev/) (default, free tier) for controls search and bot generation
-- Optional support for [Anthropic Claude](https://claude.ai) and [OpenAI GPT](https://openai.com) models
-- Tested with Cuphead by Studio MDHR
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
+- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) for the desktop GUI
+- [Flameshot](https://flameshot.org/) for screenshot capture
+- [ProtonDB](https://www.protondb.com/) for community compatibility data
+- [PCGamingWiki](https://www.pcgamingwiki.com/) for game-specific fix knowledge
+- Anthropic Claude, Google Gemini, OpenAI GPT for LLM analysis
