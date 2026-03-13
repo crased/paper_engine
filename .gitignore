@@ -34,6 +34,9 @@ runs/
 *.engine
 weights/
 
+# Archive (dead/unused code kept locally)
+archive/
+
 # Generated config (LLM-produced controls)
 conf/cuphead_controls.ini
 
