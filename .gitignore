@@ -24,10 +24,14 @@ __pycache__/
 
 # Secrets
 *.env
+.env.*
+credentials.json
+secrets.json
 
 # YOLO/ML outputs
 /yolo_dataset
 runs/
+bot_logic/models/
 *.pt
 *.onnx
 *.torchscript
@@ -39,6 +43,9 @@ archive/
 
 # Generated config (LLM-produced controls)
 conf/cuphead_controls.ini
+
+# Generated bot scripts (from generate_bot_script.py)
+bot_scripts/
 
 # Generated outputs
 audit_report.json
@@ -62,6 +69,7 @@ bot_debug_frames/
 PROJECT_REPORT.md
 FEATURE_PRIORITY_ANALYSIS.md
 V1.5_ROADMAP.md
+static_analyzer.md
 
 # IDE
 .vscode/
@@ -76,6 +84,7 @@ Thumbs.db
 
 # Logs
 *.log
+*reports/
 
 # Test
 *test_sets/

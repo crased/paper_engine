@@ -285,7 +285,7 @@ class PaperEngineApp(ctk.CTk):
             self._pages[key] = page
 
     def navigate(self, key: str):
-        """Switch to the named page."""
+        """Switch to the named page."""   
         if self._active_page == key:
             return
         # Hide current

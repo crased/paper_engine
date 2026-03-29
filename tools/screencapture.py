@@ -247,16 +247,10 @@ def take_screenshot(directory, window_geometry=None):
 
         # Try flameshot (same as Linux for consistency)
         try:
-            if config.CAPTURE_WINDOW_ONLY and window_geometry:
-                # Use flameshot with region for window-specific capture
-                cmd = ["flameshot", "gui", "--region", window_geometry, "-p", filepath]
-                subprocess.run(cmd, check=True)
-                print(f"✓ Screenshot (flameshot, window): {filename}")
-            else:
-                # Use flameshot for full screen
-                with open(filepath, "wb") as f:
-                    subprocess.run(config.FLAMESHOT_COMMAND, stdout=f, check=True)
-                print(f"✓ Screenshot (flameshot): {filename}")
+            # Always use non-interactive "flameshot screen --raw" (never "flameshot gui")
+            with open(filepath, "wb") as f:
+                subprocess.run(["flameshot", "screen", "--raw"], stdout=f, check=True)
+            print(f"✓ Screenshot (flameshot): {filename}")
             screenshot_taken = True
             return str(filepath)
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
@@ -294,17 +288,10 @@ def take_screenshot(directory, window_geometry=None):
         # Try flameshot
         try:
             # Check if we should capture a specific window
-            if config.CAPTURE_WINDOW_ONLY and window_geometry:
-                # Use flameshot gui with geometry for window-specific capture
-                cmd = ["flameshot", "gui", "--region", window_geometry, "-p", filepath]
-                subprocess.run(cmd, check=True)
-                print(f"✓ Screenshot (flameshot, window): {filename}")
-            else:
-                # Use flameshot for full screen
-                # SECURITY: Use shell=False and redirect stdout via Python file handle
-                with open(filepath, "wb") as f:
-                    subprocess.run(config.FLAMESHOT_COMMAND, stdout=f, check=True)
-                print(f"✓ Screenshot (flameshot): {filename}")
+            # Always use non-interactive "flameshot screen --raw" (never "flameshot gui")
+            with open(filepath, "wb") as f:
+                subprocess.run(["flameshot", "screen", "--raw"], stdout=f, check=True)
+            print(f"✓ Screenshot (flameshot): {filename}")
             screenshot_taken = True
             return str(filepath)
         except (FileNotFoundError, subprocess.CalledProcessError) as e:

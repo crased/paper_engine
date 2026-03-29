@@ -136,32 +136,72 @@ class RateLimiter:
 # Prompt construction
 # ---------------------------------------------------------------------------
 
-# Classes that can appear in gameplay (not just menus)
+# Legacy class lists (kept for reference, no longer used in prompts)
 GAMEPLAY_CLASSES = [
-    "cuphead",
-    "enemy",
-    "acorn",
-    "coin",
-    "life_counter",
-    "mushroom_projectile",
-    "rose_projectile",
-    "mini_cuphead",
+    "cuphead", "enemy", "acorn", "coin", "life_counter",
+    "mushroom_projectile", "rose_projectile", "mini_cuphead",
+]
+MENU_CLASSES = [
+    "back_button", "confirm_button", "dlc_menu", "end_game",
+    "exit_button", "option_menu", "save_game1", "save_game2",
+    "save_game3", "shop", "start_button", "start_game",
 ]
 
-MENU_CLASSES = [
-    "back_button",
-    "confirm_button",
-    "dlc_menu",
-    "end_game",
-    "exit_button",
-    "option_menu",
-    "save_game1",
-    "save_game2",
-    "save_game3",
-    "shop",
-    "start_button",
-    "start_game",
-]
+
+def _get_golden_rules_block() -> str:
+    """Load golden rules for prompt injection."""
+    try:
+        from pipeline.golden_rules import RuleStore
+        store = RuleStore()
+        block = store.to_prompt_block()
+        return f"\n\n{block}" if block else ""
+    except Exception:
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# Few-shot example support
+# ---------------------------------------------------------------------------
+
+# Module-level bank instance (lazy-loaded)
+_example_bank = None
+
+
+def _get_example_bank():
+    """Get or create the ExampleBank singleton."""
+    global _example_bank
+    if _example_bank is None:
+        from pipeline.example_bank import ExampleBank
+        _example_bank = ExampleBank()
+        _example_bank.load()
+    return _example_bank
+
+
+def _get_fewshot_examples(
+    memory_state: Dict[str, Any],
+    n: int = 4,
+) -> Tuple[List[Any], List["Image.Image"]]:
+    """Select and render few-shot reference examples for the current frame.
+
+    Returns:
+        (examples, rendered_images) — examples for metadata, PIL images for LLM call.
+        Returns ([], []) if no examples available (falls back to text-only prompt).
+    """
+    # TODO: call _get_example_bank().select() with scene hint from memory_state
+    # TODO: call _get_example_bank().render() to get annotated PIL images
+    # TODO: return (examples, rendered_images)
+    # TODO: handle gracefully if no examples exist yet (empty dataset)
+    try:
+        bank = _get_example_bank()
+        scene = memory_state.get("scene_name", "")
+        examples = bank.select(n=n, scene_hint=scene)
+        if not examples:
+            return [], []
+        rendered = bank.render(examples)
+        return examples, rendered
+    except Exception as exc:
+        logger.debug("Example bank unavailable: %s", exc)
+        return [], []
 
 
 def _build_annotation_prompt(
@@ -169,100 +209,27 @@ def _build_annotation_prompt(
     memory_state: Dict[str, Any],
     img_w: int,
     img_h: int,
+    n_examples: int = 0,
 ) -> str:
-    """Build the prompt for Gemini to generate YOLO annotations."""
+    """Build the annotation prompt. Uses few-shot examples when available.
 
-    # Determine scene context from memory state
-    scene = memory_state.get("scene_name", "")
-    in_game = memory_state.get("in_game", False)
-    is_loading = memory_state.get("is_loading", False)
-    hp = memory_state.get("hp", -1)
+    When n_examples > 0, the prompt expects N annotated reference images
+    followed by 1 target image in the multi-image LLM call. The references
+    teach the LLM what correct annotations look like — no manual class
+    descriptions needed.
 
-    # Build context hint
-    context_lines = []
-    if scene:
-        context_lines.append(f"Current scene: {scene}")
-    if in_game:
-        context_lines.append(
-            f"Player HP: {memory_state.get('hp', '?')}/{memory_state.get('hp_max', '?')}"
-        )
-        context_lines.append(
-            f"Super meter: {memory_state.get('super_meter', '?')}/{memory_state.get('super_meter_max', '?')}"
-        )
-        if memory_state.get("level_ending"):
-            context_lines.append("Level is ending")
-        if memory_state.get("level_won"):
-            context_lines.append("Level was won")
-    if is_loading:
-        context_lines.append("Game is loading (screen may be black/transition)")
+    When n_examples == 0 (no examples available yet), falls back to a
+    minimal text-only prompt with just the class list and memory context.
+    """
+    from pipeline.example_bank import build_fewshot_prompt
 
-    # Determine which classes are likely visible
-    is_gameplay = "level" in scene.lower() if scene else in_game
-    is_menu = not is_gameplay and not is_loading
-
-    if is_loading:
-        relevant_hint = "The screen is likely a loading transition — there may be nothing to annotate."
-    elif is_gameplay:
-        relevant_hint = (
-            "This is a GAMEPLAY screen. Look for: cuphead (the player character), "
-            "enemies, projectiles (mushroom_projectile, rose_projectile), coins, "
-            "life_counter (hearts in HUD), mini_cuphead. "
-            "Do NOT annotate menu UI elements."
-        )
-    else:
-        relevant_hint = (
-            "This is a MENU/MAP screen. Look for: buttons (start_button, back_button, "
-            "confirm_button, exit_button), menu types (option_menu, dlc_menu, start_game), "
-            "save slots (save_game1/2/3), shop, cuphead, mini_cuphead."
-        )
-
-    context_block = (
-        "\n".join(f"  - {l}" for l in context_lines)
-        if context_lines
-        else "  (no memory state available)"
+    return build_fewshot_prompt(
+        class_names=class_names,
+        memory_state=memory_state,
+        img_w=img_w,
+        img_h=img_h,
+        n_examples=n_examples,
     )
-
-    # Build class list
-    class_list = "\n".join(
-        f"  {cid}: {name}" for cid, name in sorted(class_names.items())
-    )
-
-    prompt = f"""You are annotating a Cuphead game screenshot for YOLO object detection training.
-
-IMAGE DIMENSIONS: {img_w} x {img_h} pixels
-
-GAME STATE (from memory reading):
-{context_block}
-
-SCENE CONTEXT: {relevant_hint}
-
-AVAILABLE CLASSES (id: name):
-{class_list}
-
-INSTRUCTIONS:
-1. Identify ALL visible game objects in the screenshot that match the classes above.
-2. For each object, provide a tight bounding box.
-3. Output ONLY a JSON array of detections. Each detection is an object with:
-   - "class_id": integer (from the class list above)
-   - "class_name": string (must match exactly)
-   - "bbox": [x1, y1, x2, y2] in PIXEL coordinates (top-left and bottom-right corners)
-4. Be precise with bounding boxes — they should tightly enclose each object.
-5. If the screen is a loading screen, black screen, or has no recognizable objects, return an empty array: []
-6. Do NOT hallucinate objects that aren't visible. Only annotate what you can clearly see.
-7. For "cuphead" — this is the main player character (a cup-headed character). Annotate even if partially visible.
-8. For "enemy" — any hostile character or boss. Use this generic class for all enemy types.
-9. For projectiles — mushroom_projectile (pink mushrooms) and rose_projectile (thorny roses).
-10. For "life_counter" — the heart icons in the HUD showing remaining lives.
-
-OUTPUT FORMAT (JSON only, no markdown):
-[
-  {{"class_id": 4, "class_name": "cuphead", "bbox": [100, 200, 180, 350]}},
-  {{"class_id": 7, "class_name": "enemy", "bbox": [500, 150, 700, 400]}}
-]
-
-If nothing to annotate, return: []"""
-
-    return prompt
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +500,21 @@ def annotate_session(
         frames = frames[:max_frames]
         stats.total_frames = len(frames)
 
+    # Pre-load few-shot reference examples (shared across all frames in session)
+    # These are rendered annotated images from the user's corrected dataset.
+    # Loaded once per session, not per frame — same examples, different targets.
+    ref_examples, ref_images = [], []
+    if not dry_run:
+        # Use first frame's state for scene hint (session is usually one scene)
+        hint_state = frames[0].state if frames else {}
+        ref_examples, ref_images = _get_fewshot_examples(hint_state, n=4)
+        if ref_images:
+            logger.info(
+                "Loaded %d reference examples for few-shot annotation", len(ref_images)
+            )
+        else:
+            logger.info("No reference examples available — using text-only prompt")
+
     for i, frame in enumerate(frames):
         frame_label = f"[{i + 1}/{stats.total_frames}] {frame.image_path.name}"
 
@@ -570,14 +552,21 @@ def annotate_session(
             stats.annotated += 1
             continue
 
-        # Build prompt with memory context
-        prompt = _build_annotation_prompt(class_names, frame.state, img_w, img_h)
+        # Build prompt — uses few-shot examples when available
+        prompt = _build_annotation_prompt(
+            class_names, frame.state, img_w, img_h,
+            n_examples=len(ref_images),
+        )
+
+        # Build image list: reference examples first, then target frame
+        # The prompt tells the LLM "the last image is the one to annotate"
+        llm_images = ref_images + [img]
 
         # Call LLM with rate limiting
         rate_limiter.wait()
         try:
             response = _call_llm_vision(
-                client, provider, model, prompt, [img], max_tokens=4096
+                client, provider, model, prompt, llm_images, max_tokens=4096
             )
         except Exception as exc:
             exc_str = str(exc).lower()
@@ -646,6 +635,10 @@ def main():
     )
     parser.add_argument(
         "--max-frames", type=int, default=0, help="Limit number of frames to annotate"
+    )
+    parser.add_argument(
+        "--no-examples", action="store_true",
+        help="Disable few-shot examples (use text-only prompt)",
     )
     parser.add_argument("--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()

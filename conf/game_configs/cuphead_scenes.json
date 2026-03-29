@@ -1,0 +1,28 @@
+{
+  "images": {
+    "display_name": "",
+    "scene_type": "menu",
+    "raw_description": "tutorial screen doesn't matter",
+    "player": {
+      "name": "Cuphead",
+      "appearance": "Small cartoon character with white head/cup, blue and white striped shirt, standing on a gray cube",
+      "size": "Small, approximately 30-40 pixels tall",
+      "position": "Center of screen, standing on platform",
+      "notes": "Appears to be demonstrating tutorial mechanics"
+    },
+    "enemies": [],
+    "projectiles": [],
+    "hazards": [],
+    "platforms": [
+      {
+        "name": "Tutorial cube",
+        "appearance": "Gray/white 3D cube or block",
+        "size": "Medium sized, about same width as player character",
+        "position": "Center of screen",
+        "notes": "Platform for demonstrating jump mechanics"
+      }
+    ],
+    "terrain": "Plain tutorial background with instructional text and UI elements",
+    "sample_image": "yolo_dataset/train/images/kXkMQvGsjTA_000327.jpg"
+  }
+}

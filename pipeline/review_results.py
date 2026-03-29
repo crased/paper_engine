@@ -27,9 +27,12 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 import copy
 import json
+import logging
 import shutil
 import time as _time
 import yaml
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -309,6 +312,34 @@ class _BaseEditorWindow(ctk.CTkToplevel):
         self._stats_file = PROJECT_ROOT / ".annotation_stats.json"
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # -- Review queue state (Describe & Review mode) --
+        self._review_mode = False
+        self._review_queue: list = []  # indices into self._edited
+        self._review_pos = 0  # current position in queue
+        self._review_session = None  # ReviewSession being built
+        self._review_image_opened_at = None  # timing per review image
+        self._generated_detections_snapshot: list = []  # LLM output before corrections
+        self._human_detections_snapshot: list = []  # human boxes before LLM
+
+        # -- Batch state --
+        self._review_phase = "describe"  # "describe" → "review"
+        self._batch_descriptions: dict = {}  # idx → description text
+        self._batch_human_dets: dict = {}  # idx → human detections snapshot
+        self._batch_results: dict = {}  # idx → DescribeResult (after batch LLM call)
+        self._batch_size = 10  # images per LLM call
+
+        # -- Parent template state --
+        self._parent_idx = None  # index of the parent/template image
+        self._parent_mode = False  # when True, clicking sidebar applies parent boxes
+
+        # -- Correction tracking (snapshot of detections at load time) --
+        # Keyed by idx. Stores a deep copy of detections when the image was
+        # first loaded, so _save_corrections() can diff against it and record
+        # review feedback even outside of describe-and-review mode.
+        self._load_snapshot: dict = {}  # idx → List[Dict] (detections at load)
+        for idx, entry in enumerate(self._edited):
+            self._load_snapshot[idx] = copy.deepcopy(entry.get("detections", []))
+
         self._build_ui()
         self._build_sidebar_list()
         self._bind_shortcuts()
@@ -362,8 +393,32 @@ class _BaseEditorWindow(ctk.CTkToplevel):
         )
         self._img_count_lbl.pack(side="left")
 
-        self._thumb_scroll = ctk.CTkScrollableFrame(left, width=230)
-        self._thumb_scroll.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
+        # Virtualized sidebar — canvas + scrollbar, no per-row widgets
+        sidebar_container = ctk.CTkFrame(left)
+        sidebar_container.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
+        sidebar_container.grid_columnconfigure(0, weight=1)
+        sidebar_container.grid_rowconfigure(0, weight=1)
+
+        self._sidebar_canvas = tk.Canvas(
+            sidebar_container, bg="#1a1a1a", highlightthickness=0, borderwidth=0,
+        )
+        self._sidebar_canvas.grid(row=0, column=0, sticky="nsew")
+
+        self._sidebar_sb = ctk.CTkScrollbar(
+            sidebar_container, command=self._sidebar_canvas.yview,
+        )
+        self._sidebar_sb.grid(row=0, column=1, sticky="ns")
+        self._sidebar_canvas.configure(yscrollcommand=self._sidebar_sb.set)
+
+        self._ROW_HEIGHT = 28
+        self._sidebar_canvas.bind("<Button-1>", self._on_sidebar_click)
+        self._sidebar_canvas.bind("<Configure>", lambda e: self._redraw_sidebar())
+        self._sidebar_canvas.bind("<MouseWheel>", self._on_sidebar_mousewheel)
+        self._sidebar_canvas.bind("<Button-4>", self._on_sidebar_mousewheel)
+        self._sidebar_canvas.bind("<Button-5>", self._on_sidebar_mousewheel)
+
+        # Keep legacy name for compatibility (unused but prevents AttributeError)
+        self._thumb_scroll = sidebar_container
 
         # -- Right: detail + controls --
         right = ctk.CTkFrame(self)
@@ -384,6 +439,34 @@ class _BaseEditorWindow(ctk.CTkToplevel):
 
         nav = ctk.CTkFrame(toolbar, fg_color="transparent")
         nav.pack(side="right")
+
+        # Description mode toggle (hidden by default, enabled in AnnotationWindow)
+        self._desc_mode = False
+        self._desc_toggle_btn = ctk.CTkButton(
+            nav, text="Description Mode", width=130,
+            fg_color="#6A1B9A", hover_color="#4A148C",
+            font=ctk.CTkFont(size=11),
+            command=self._toggle_description_mode,
+        )
+        # Not packed yet — subclass calls _enable_description_mode() to show it
+
+        # Parent template buttons
+        self._parent_btn = ctk.CTkButton(
+            nav, text="Set Parent", width=100,
+            fg_color="#0E7490", hover_color="#0C6380",
+            font=ctk.CTkFont(size=11),
+            command=self._toggle_parent_mode,
+        )
+        self._parent_btn.pack(side="left", padx=(0, 4))
+
+        self._apply_parent_btn = ctk.CTkButton(
+            nav, text="Apply Parent", width=100,
+            fg_color="#E65100", hover_color="#BF360C",
+            font=ctk.CTkFont(size=11),
+            command=self._apply_parent_to_current,
+        )
+        # Hidden until parent mode is active
+
         ctk.CTkButton(nav, text="< Prev", width=70, command=self._prev_image).pack(
             side="left", padx=2
         )
@@ -483,91 +566,1008 @@ class _BaseEditorWindow(ctk.CTkToplevel):
         )
         self._save_status.pack(side="left", padx=8)
 
+        # Store reference to bbox bottom panel for mode toggling
+        self._bbox_panel = bottom
+
+        # -- Description mode panel (hidden by default, same grid cell) --
+        self._desc_panel = ctk.CTkFrame(right)
+        self._desc_panel.grid_columnconfigure(0, weight=1)
+        self._desc_panel.grid_rowconfigure(1, weight=1)
+        # Not gridded yet — _toggle_description_mode() swaps it in
+
+        desc_header = ctk.CTkFrame(self._desc_panel, fg_color="transparent")
+        desc_header.grid(row=0, column=0, sticky="ew")
+        ctk.CTkLabel(
+            desc_header, text="Describe what you see",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(side="left", padx=4)
+
+        self._desc_status_lbl = ctk.CTkLabel(
+            desc_header, text="experimental",
+            font=ctk.CTkFont(size=10), text_color="#AB47BC",
+        )
+        self._desc_status_lbl.pack(side="left", padx=8)
+
+        self._extract_btn = ctk.CTkButton(
+            desc_header, text="Extract  (Ctrl+Enter)", width=160, height=28,
+            fg_color="#7B1FA2", hover_color="#6A1B9A",
+            font=ctk.CTkFont(size=11),
+            command=self._extract_description,
+        )
+        self._extract_btn.pack(side="right", padx=4)
+
+        # Generate Boxes button (describe-to-bbox mode) — same row, left of Extract
+        self._gen_boxes_btn = ctk.CTkButton(
+            desc_header, text="Generate Boxes", width=140, height=28,
+            fg_color="#0E7490", hover_color="#0C6380",
+            font=ctk.CTkFont(size=11),
+            command=self._generate_boxes_from_description,
+        )
+        self._gen_boxes_btn.pack(side="right", padx=4)
+
+        self._desc_text = ctk.CTkTextbox(self._desc_panel, height=80, wrap="word")
+        self._desc_text.grid(row=1, column=0, sticky="nsew", padx=2, pady=(2, 4))
+
+        # Placeholder text
+        self._desc_placeholder = "Describe scene here..."
+        self._desc_has_placeholder = True
+        self._desc_text.insert("0.0", self._desc_placeholder)
+        self._desc_text.configure(text_color="gray")
+        self._desc_text.bind("<FocusIn>", self._desc_on_focus_in)
+        self._desc_text.bind("<FocusOut>", self._desc_on_focus_out)
+
+        # Structured output preview (read-only, shows LLM extraction result)
+        self._desc_result_frame = ctk.CTkFrame(self._desc_panel)
+        self._desc_result_frame.grid(row=2, column=0, sticky="ew", padx=2, pady=(0, 2))
+        self._desc_result_frame.grid_columnconfigure(0, weight=1)
+
+        self._desc_result_text = ctk.CTkTextbox(
+            self._desc_result_frame, height=60, wrap="word", state="disabled",
+        )
+        self._desc_result_text.grid(row=0, column=0, sticky="ew")
+
+        desc_save_row = ctk.CTkFrame(self._desc_panel, fg_color="transparent")
+        desc_save_row.grid(row=3, column=0, sticky="ew", pady=(2, 0))
+
+        self._desc_save_btn = ctk.CTkButton(
+            desc_save_row, text="Save Scene Context", width=180, height=28,
+            fg_color="#1565C0", hover_color="#0D47A1",
+            command=self._save_scene_context,
+        )
+        self._desc_save_btn.pack(side="left", padx=4)
+
+        self._desc_save_status = ctk.CTkLabel(
+            desc_save_row, text="", font=ctk.CTkFont(size=11), text_color="gray",
+        )
+        self._desc_save_status.pack(side="left", padx=8)
+
+        # -- Review queue controls (row 4, hidden until review mode activated) --
+        self._review_controls = ctk.CTkFrame(self._desc_panel, fg_color="transparent")
+        # Not gridded yet — _start_review_queue() shows it
+
+        self._review_progress_lbl = ctk.CTkLabel(
+            self._review_controls, text="0 / 0",
+            font=ctk.CTkFont(size=13, weight="bold"), text_color="#AB47BC",
+        )
+        self._review_progress_lbl.pack(side="left", padx=8)
+
+        self._accept_btn = ctk.CTkButton(
+            self._review_controls, text="Accept & Next", width=130, height=28,
+            fg_color="#2E7D32", hover_color="#1B5E20",
+            font=ctk.CTkFont(size=11),
+            command=self._accept_review,
+        )
+        self._accept_btn.pack(side="left", padx=4)
+
+        self._skip_btn = ctk.CTkButton(
+            self._review_controls, text="Skip", width=70, height=28,
+            fg_color="#455A64", hover_color="#37474F",
+            font=ctk.CTkFont(size=11),
+            command=self._skip_review,
+        )
+        self._skip_btn.pack(side="left", padx=4)
+
+        # Process Batch button — sends accumulated descriptions to LLM
+        self._batch_btn = ctk.CTkButton(
+            self._review_controls, text="Process Batch", width=130, height=28,
+            fg_color="#E65100", hover_color="#BF360C",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            command=self._process_batch,
+        )
+        self._batch_btn.pack(side="left", padx=8)
+
+        self._review_status_lbl = ctk.CTkLabel(
+            self._review_controls, text="", font=ctk.CTkFont(size=11), text_color="gray",
+        )
+        self._review_status_lbl.pack(side="left", padx=8)
+
     # ------------------------------------------------------------------
-    # Sidebar: lightweight text rows (built once, updated in-place)
+    # Description text — placeholder behavior
+    # ------------------------------------------------------------------
+
+    def _desc_on_focus_in(self, event=None):
+        """Clear placeholder when user clicks into the text box."""
+        if self._desc_has_placeholder:
+            self._desc_text.delete("0.0", "end")
+            self._desc_text.configure(text_color="white")
+            self._desc_has_placeholder = False
+
+    def _desc_on_focus_out(self, event=None):
+        """Restore placeholder if text box is empty."""
+        text = self._desc_text.get("0.0", "end").strip()
+        if not text:
+            self._desc_text.insert("0.0", self._desc_placeholder)
+            self._desc_text.configure(text_color="gray")
+            self._desc_has_placeholder = True
+
+    def _desc_get_text(self) -> str:
+        """Get description text, ignoring placeholder."""
+        if self._desc_has_placeholder:
+            return ""
+        return self._desc_text.get("0.0", "end").strip()
+
+    def _desc_set_text(self, text: str):
+        """Set description text, clearing placeholder."""
+        self._desc_text.delete("0.0", "end")
+        if text:
+            self._desc_text.insert("0.0", text)
+            self._desc_text.configure(text_color="white")
+            self._desc_has_placeholder = False
+        else:
+            self._desc_text.insert("0.0", self._desc_placeholder)
+            self._desc_text.configure(text_color="gray")
+            self._desc_has_placeholder = True
+
+    # ------------------------------------------------------------------
+    # Parent template — set a parent image, click sidebar to apply boxes
+    # ------------------------------------------------------------------
+
+    def _toggle_parent_mode(self):
+        """Toggle parent template mode.
+
+        First click: sets current image as parent, shows Apply button.
+        User browses images freely, clicks Apply Parent to stamp boxes.
+        Click Set Parent again to deactivate.
+        """
+        if not self._parent_mode:
+            if self._current_idx is None:
+                return
+            self._parent_idx = self._current_idx
+            self._parent_mode = True
+            parent_name = self._edited[self._parent_idx]["image_name"]
+            n_dets = len(self._edited[self._parent_idx].get("detections", []))
+            self._parent_btn.configure(
+                text="Parent: ON", fg_color="#2E7D32", hover_color="#1B5E20",
+            )
+            self._apply_parent_btn.pack(side="left", padx=(0, 8))
+            self._detail_title.configure(
+                text=f"PARENT: {parent_name} ({n_dets} boxes) — browse & Apply"
+            )
+        else:
+            self._parent_mode = False
+            self._parent_idx = None
+            self._parent_btn.configure(
+                text="Set Parent", fg_color="#0E7490", hover_color="#0C6380",
+            )
+            self._apply_parent_btn.pack_forget()
+            if self._current_idx is not None:
+                entry = self._edited[self._current_idx]
+                self._detail_title.configure(
+                    text=f"{entry['image_name']}  ({entry['image_width']}x{entry['image_height']})"
+                )
+
+    def _apply_parent_to_current(self):
+        """Apply parent's annotations to the currently viewed image."""
+        if self._parent_idx is None or self._current_idx is None:
+            return
+        if self._current_idx == self._parent_idx:
+            return
+
+        self._apply_parent_to(self._current_idx)
+
+        # Re-render to show the applied boxes
+        self._render_detail()
+        self._render_detection_list()
+
+    def _apply_parent_to(self, target_idx):
+        """Copy the parent image's annotations to the target image.
+
+        Straight copy. User can then nudge boxes manually.
+        """
+        if self._parent_idx is None:
+            return
+        if target_idx == self._parent_idx:
+            return
+
+        parent_entry = self._edited[self._parent_idx]
+        target_entry = self._edited[target_idx]
+
+        target_entry["detections"] = copy.deepcopy(parent_entry["detections"])
+        self._dirty.add(target_idx)
+
+        # Also copy description if in review mode
+        if self._review_mode:
+            parent_desc = self._batch_descriptions.get(self._parent_idx, "")
+            if parent_desc:
+                self._batch_descriptions[target_idx] = parent_desc
+
+    # ------------------------------------------------------------------
+    # Description mode — toggle, extract, save
+    # ------------------------------------------------------------------
+
+    def _enable_description_mode_toggle(self):
+        """Show the description mode toggle button in the toolbar.
+        Called by AnnotationWindow after super().__init__."""
+        self._desc_toggle_btn.pack(side="left", padx=(0, 8))
+
+    def _toggle_description_mode(self):
+        """Swap between bbox annotation and description annotation panels."""
+        self._desc_mode = not self._desc_mode
+        if self._desc_mode:
+            self._bbox_panel.grid_remove()
+            self._desc_panel.grid(row=2, column=0, sticky="nsew", padx=8, pady=(2, 6))
+            self._desc_toggle_btn.configure(
+                text="Bbox Mode", fg_color="#2E7D32", hover_color="#1B5E20",
+            )
+            # Load existing description for current image's scene
+            self._load_scene_description()
+        else:
+            self._desc_panel.grid_remove()
+            self._bbox_panel.grid(row=2, column=0, sticky="ew", padx=8, pady=(2, 6))
+            self._desc_toggle_btn.configure(
+                text="Description Mode", fg_color="#6A1B9A", hover_color="#4A148C",
+            )
+
+    def _get_current_scene_name(self) -> str:
+        """Derive a scene identifier for the current image.
+        Uses session frame metadata if available, otherwise falls back to filename."""
+        if self._current_idx is None:
+            return ""
+        entry = self._edited[self._current_idx]
+        img_path = Path(entry["image_path"])
+
+        # Check for companion .json (session frames have frame_NNNNNN.json)
+        json_path = img_path.with_suffix(".json")
+        if json_path.exists():
+            try:
+                import json as _json
+                data = _json.loads(json_path.read_text())
+                scene = data.get("state", {}).get("scene_name", "")
+                if scene:
+                    return scene
+            except Exception:
+                pass
+
+        # Fallback: use parent directory name as scene proxy
+        return img_path.parent.name
+
+    def _load_scene_description(self):
+        """Load existing scene context into the description text box."""
+        # Don't auto-load scene descriptions during review mode
+        if self._review_mode:
+            return
+        scene = self._get_current_scene_name()
+        if not scene:
+            return
+        try:
+            from pipeline.scene_context import SceneContextStore
+            store = SceneContextStore("Cuphead")
+            ctx = store.get(scene)
+            if ctx and ctx.raw_description:
+                self._desc_set_text(ctx.raw_description)
+                # Show structured preview
+                self._show_extraction_result(ctx.to_prompt_block())
+                self._desc_save_status.configure(text=f"Scene: {scene}", text_color="gray")
+            else:
+                self._desc_save_status.configure(text=f"Scene: {scene} (no context yet)", text_color="gray")
+        except Exception:
+            pass
+
+    def _extract_description(self):
+        """Send description text + current image to LLM for structured extraction."""
+        if self._current_idx is None:
+            return
+        raw_text = self._desc_get_text()
+        if not raw_text:
+            self._desc_status_lbl.configure(text="write a description first", text_color="#f85149")
+            return
+
+        entry = self._edited[self._current_idx]
+        image_path = entry["image_path"]
+        scene = self._get_current_scene_name()
+
+        self._extract_btn.configure(state="disabled", text="Extracting...")
+        self._desc_status_lbl.configure(text="sending to LLM...", text_color="#AB47BC")
+
+        import threading
+
+        def _worker():
+            try:
+                from pipeline.scene_context import extract_scene_context
+                ctx = extract_scene_context(raw_text, image_path, scene)
+                self.after(0, lambda: self._on_extraction_done(ctx))
+            except NotImplementedError:
+                self.after(0, lambda: self._on_extraction_error(
+                    "extract_scene_context() not yet implemented — see pipeline/scene_context.py"
+                ))
+            except Exception as exc:
+                self.after(0, lambda: self._on_extraction_error(str(exc)))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_extraction_done(self, ctx):
+        """Handle successful LLM extraction."""
+        self._extract_btn.configure(state="normal", text="Extract  (Ctrl+Enter)")
+        self._desc_status_lbl.configure(text="extracted", text_color="#3fb950")
+        self._show_extraction_result(ctx.to_prompt_block())
+        # Stash the extracted context for saving
+        self._extracted_ctx = ctx
+
+    def _on_extraction_error(self, msg):
+        """Handle failed LLM extraction."""
+        self._extract_btn.configure(state="normal", text="Extract  (Ctrl+Enter)")
+        self._desc_status_lbl.configure(text=f"error: {msg[:60]}", text_color="#f85149")
+
+    def _show_extraction_result(self, text: str):
+        """Display structured extraction in the preview textbox."""
+        self._desc_result_text.configure(state="normal")
+        self._desc_result_text.delete("0.0", "end")
+        self._desc_result_text.insert("0.0", text)
+        self._desc_result_text.configure(state="disabled")
+
+    def _save_scene_context(self):
+        """Save extracted context to the scene context store."""
+        ctx = getattr(self, "_extracted_ctx", None)
+        if ctx is None:
+            self._desc_save_status.configure(text="extract first", text_color="#f85149")
+            return
+        # Preserve the raw description from the text box
+        ctx.raw_description = self._desc_get_text()
+        # Set sample image
+        if self._current_idx is not None:
+            ctx.sample_image = self._edited[self._current_idx]["image_path"]
+
+        try:
+            from pipeline.scene_context import SceneContextStore
+            store = SceneContextStore("Cuphead")
+            store.set(ctx)
+            store.save()
+            scene = ctx.scene_name or self._get_current_scene_name()
+            self._desc_save_status.configure(
+                text=f"Saved context for {scene}", text_color="#3fb950",
+            )
+        except Exception as exc:
+            self._desc_save_status.configure(
+                text=f"save failed: {str(exc)[:50]}", text_color="#f85149",
+            )
+
+    # ------------------------------------------------------------------
+    # Describe & Review — review queue + describe-to-bbox
+    # ------------------------------------------------------------------
+
+    def _start_review_queue(self, count: int = 100, shuffle: bool = True):
+        """Initialize a review queue of N images.
+
+        Two-phase flow:
+        1. DESCRIBE phase: user goes through images, writes descriptions +
+           draws rough boxes, clicks "Accept & Next" to store and advance.
+           No LLM calls — just accumulating descriptions.
+        2. After describing a batch (or all), click "Process Batch" to send
+           accumulated images + descriptions to LLM in one call.
+        3. REVIEW phase: user reviews side-by-side comparisons (human vs LLM),
+           accepts refined annotations or corrects them.
+        """
+        import random
+
+        from pipeline.review_feedback import ReviewSession
+
+        indices = list(range(len(self._edited)))
+        if shuffle:
+            random.shuffle(indices)
+        self._review_queue = indices[:count]
+        self._review_pos = 0
+        self._review_mode = True
+        self._review_phase = "describe"  # start in describe phase
+
+        self._batch_descriptions = {}
+        self._batch_human_dets = {}
+        self._batch_results = {}
+
+        self._review_session = ReviewSession.create(
+            total_images=len(self._review_queue),
+            source_path=str(self._edited[0]["image_path"]) if self._edited else "",
+        )
+
+        # Activate description mode if not already active
+        if not self._desc_mode:
+            self._toggle_description_mode()
+
+        # Show review controls, hide scene-context save row
+        self._review_controls.grid(row=4, column=0, sticky="ew", pady=(4, 0))
+        self._desc_save_btn.pack_forget()
+        self._desc_save_status.pack_forget()
+
+        # Hide Extract and Generate Boxes in describe phase (no LLM calls)
+        self._extract_btn.pack_forget()
+        self._gen_boxes_btn.pack_forget()
+
+        self._update_review_progress()
+
+        # Navigate to first queue image
+        if self._review_queue:
+            self._select_image(self._review_queue[0])
+            self._review_image_opened_at = _time.monotonic()
+
+    def _update_review_progress(self):
+        """Update the review progress label."""
+        pos = self._review_pos + 1
+        total = len(self._review_queue)
+        described = len(self._batch_descriptions)
+
+        if self._review_phase == "describe":
+            self._review_progress_lbl.configure(
+                text=f"Describe: {pos} / {total}  ({described} queued)"
+            )
+        else:
+            self._review_progress_lbl.configure(
+                text=f"Review: {pos} / {total}"
+            )
+
+    def _generate_boxes_from_description(self):
+        """Send description + current image to LLM for independent annotation.
+
+        Phase 1: LLM generates its own bboxes from the description + image.
+        The human's existing boxes are captured first so both can be compared
+        side by side. If human has boxes, also runs phase 2 (critique).
+        """
+        if self._current_idx is None:
+            return
+        raw_text = self._desc_get_text()
+        if not raw_text:
+            self._desc_status_lbl.configure(
+                text="write a description first", text_color="#f85149"
+            )
+            return
+
+        entry = self._edited[self._current_idx]
+        image_path = entry["image_path"]
+
+        # Capture current human annotations before LLM generates
+        self._human_detections_snapshot = copy.deepcopy(entry.get("detections", []))
+
+        self._gen_boxes_btn.configure(state="disabled", text="Generating...")
+        self._desc_status_lbl.configure(text="Phase 1: LLM annotating...", text_color="#0E7490")
+
+        import threading
+
+        def _worker():
+            try:
+                from pipeline.describe_annotator import (
+                    critique_annotations,
+                    describe_to_bboxes,
+                    render_comparison,
+                )
+
+                # Phase 1: LLM generates its own boxes
+                result = describe_to_bboxes(
+                    description=raw_text,
+                    image_path=image_path,
+                    class_names=self._class_names,
+                )
+
+                # Render side-by-side comparison
+                human_dets = self._human_detections_snapshot
+                comparison_img = render_comparison(
+                    image_path, human_dets, result.generated_detections, self._class_names
+                )
+
+                # Phase 2: Critique (if human has annotations)
+                critique = None
+                if human_dets:
+                    self.after(0, lambda: self._desc_status_lbl.configure(
+                        text="Phase 2: critiquing...", text_color="#AB47BC"
+                    ))
+                    critique = critique_annotations(
+                        image_path=image_path,
+                        description=raw_text,
+                        human_detections=human_dets,
+                        llm_detections=result.generated_detections,
+                        class_names=self._class_names,
+                    )
+
+                self.after(0, lambda: self._on_describe_boxes_done(
+                    result, comparison_img, critique
+                ))
+            except Exception as exc:
+                self.after(0, lambda: self._on_describe_boxes_error(str(exc)))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_describe_boxes_done(self, result, comparison_img, critique):
+        """Handle completed annotation + critique pipeline.
+
+        Shows side-by-side comparison image and critique text.
+        If critique produced refined detections, uses those. Otherwise
+        uses the LLM's phase 1 detections.
+        """
+        self._gen_boxes_btn.configure(state="normal", text="Generate Boxes")
+
+        n_llm = len(result.generated_detections)
+        n_human = len(self._human_detections_snapshot)
+
+        # Save comparison image to temp and show in preview
+        import tempfile
+        comp_path = Path(tempfile.gettempdir()) / "annotation_comparison.jpg"
+        comparison_img.save(str(comp_path), quality=95)
+        self._comparison_image_path = str(comp_path)
+
+        # Build status + preview text
+        if critique and critique.critique_text:
+            status = (
+                f"Human: {n_human} | LLM: {n_llm} | "
+                f"Refined: {len(critique.refined_detections)} "
+                f"({result.generation_time_sec + critique.generation_time_sec:.1f}s)"
+            )
+            preview = f"CRITIQUE:\n{critique.critique_text}\n\nComparison saved: {comp_path}"
+            final_dets = critique.refined_detections
+        else:
+            status = (
+                f"Human: {n_human} | LLM: {n_llm} "
+                f"({result.generation_time_sec:.1f}s)"
+            )
+            preview = f"LLM generated {n_llm} boxes.\nComparison saved: {comp_path}"
+            final_dets = result.generated_detections
+
+        self._desc_status_lbl.configure(text=status, text_color="#3fb950")
+        self._show_extraction_result(preview)
+
+        # Snapshot LLM output for feedback tracking
+        self._generated_detections_snapshot = copy.deepcopy(result.generated_detections)
+
+        # Inject refined/LLM detections into current entry
+        if self._current_idx is not None:
+            entry = self._edited[self._current_idx]
+            entry["detections"] = copy.deepcopy(final_dets)
+            self._dirty.add(self._current_idx)
+            self._render_detail()
+            self._render_detection_list()
+
+    def _on_describe_boxes_error(self, msg):
+        """Handle failed describe-to-bbox generation."""
+        self._gen_boxes_btn.configure(state="normal", text="Generate Boxes")
+        self._desc_status_lbl.configure(text=f"error: {msg[:60]}", text_color="#f85149")
+
+    def _accept_review(self):
+        """Accept current image and advance to next.
+
+        Behavior depends on phase:
+        - DESCRIBE phase: Store description + human boxes, advance to next image.
+          No LLM call. Accumulates batch for later processing.
+        - REVIEW phase: Store final (possibly corrected) annotations, record
+          ImageReview feedback, auto-save YOLO labels, advance to next.
+        """
+        if not self._review_mode or self._current_idx is None:
+            return
+
+        idx = self._current_idx
+        entry = self._edited[idx]
+        description = self._desc_get_text()
+
+        if self._review_phase == "describe":
+            # Store description + human annotations for batch processing
+            if description:
+                self._batch_descriptions[idx] = description
+                self._batch_human_dets[idx] = copy.deepcopy(entry.get("detections", []))
+
+            self._review_pos += 1
+            if self._review_pos < len(self._review_queue):
+                self._show_extraction_result("")
+                n = len(self._batch_descriptions)
+                self._desc_status_lbl.configure(
+                    text=f"{n} described — click Process Batch when ready",
+                    text_color="gray",
+                )
+                self._update_review_progress()
+                next_idx = self._review_queue[self._review_pos]
+                self._select_image(next_idx)
+                self._review_image_opened_at = _time.monotonic()
+            else:
+                # Reached end — auto-trigger batch if there are descriptions
+                if self._batch_descriptions:
+                    self._desc_status_lbl.configure(
+                        text=f"All described ({len(self._batch_descriptions)}) — processing...",
+                        text_color="#E65100",
+                    )
+                    self.after(200, self._process_batch)
+                else:
+                    self._finish_review_queue()
+
+        elif self._review_phase == "review":
+            from datetime import datetime
+
+            from pipeline.review_feedback import ImageReview
+
+            final_dets = copy.deepcopy(entry.get("detections", []))
+            generated_dets = copy.deepcopy(
+                self._batch_results.get(idx, {}).get("detections", [])
+                if isinstance(self._batch_results.get(idx), dict)
+                else (self._batch_results[idx].generated_detections
+                      if idx in self._batch_results else [])
+            )
+
+            # Determine if corrections were made
+            corrections_made = len(final_dets) != len(generated_dets)
+            if not corrections_made and final_dets:
+                for fd, gd in zip(final_dets, generated_dets):
+                    if fd.get("bbox") != gd.get("bbox") or fd.get("class_id") != gd.get("class_id"):
+                        corrections_made = True
+                        break
+
+            review_time = 0.0
+            if self._review_image_opened_at is not None:
+                review_time = _time.monotonic() - self._review_image_opened_at
+
+            review = ImageReview(
+                image_path=entry["image_path"],
+                image_name=entry["image_name"],
+                description=self._batch_descriptions.get(idx, ""),
+                generated_detections=generated_dets,
+                final_detections=final_dets,
+                corrections_made=corrections_made,
+                timestamp=datetime.now().isoformat(),
+                review_time_sec=review_time,
+            )
+
+            if self._review_session:
+                self._review_session.add_review(review)
+
+            # Auto-save labels
+            if idx in self._dirty:
+                self._save_corrections()
+
+            self._review_pos += 1
+            self._generated_detections_snapshot = []
+
+            if self._review_pos < len(self._review_queue):
+                self._update_review_progress()
+                next_idx = self._review_queue[self._review_pos]
+                self._select_image(next_idx)
+                self._review_image_opened_at = _time.monotonic()
+                # Load LLM results for this image if available
+                self._load_batch_result_for_current()
+            else:
+                self._finish_review_queue()
+
+    def _skip_review(self):
+        """Skip current image without saving, advance to next."""
+        if not self._review_mode:
+            return
+
+        self._review_pos += 1
+        self._generated_detections_snapshot = []
+
+        if self._review_pos < len(self._review_queue):
+            self._show_extraction_result("")
+            self._desc_status_lbl.configure(text="", text_color="gray")
+            self._update_review_progress()
+            next_idx = self._review_queue[self._review_pos]
+            self._select_image(next_idx)
+            self._review_image_opened_at = _time.monotonic()
+            if self._review_phase == "review":
+                self._load_batch_result_for_current()
+        else:
+            if self._review_phase == "describe" and self._batch_descriptions:
+                self.after(200, self._process_batch)
+            else:
+                self._finish_review_queue()
+
+    def _process_batch(self):
+        """Send all accumulated descriptions + images to LLM in one batch call.
+
+        Transitions from describe phase → review phase. One API call for
+        the entire batch instead of one per image.
+        """
+        if not self._batch_descriptions:
+            self._review_status_lbl.configure(
+                text="No descriptions to process", text_color="#f85149"
+            )
+            return
+
+        self._batch_btn.configure(state="disabled", text="Processing...")
+        self._accept_btn.configure(state="disabled")
+        n = len(self._batch_descriptions)
+        self._desc_status_lbl.configure(
+            text=f"Batch: sending {n} images to LLM...", text_color="#E65100"
+        )
+
+        import threading
+
+        def _worker():
+            try:
+                from pipeline.describe_annotator import (
+                    BatchItem,
+                    batch_describe_to_bboxes,
+                    render_comparison,
+                    should_critique,
+                    critique_annotations,
+                )
+
+                # Build batch items (only images that have descriptions)
+                described_indices = [
+                    idx for idx in self._review_queue if idx in self._batch_descriptions
+                ]
+                items = []
+                for idx in described_indices:
+                    entry = self._edited[idx]
+                    items.append(BatchItem(
+                        image_path=entry["image_path"],
+                        description=self._batch_descriptions[idx],
+                        human_detections=self._batch_human_dets.get(idx, []),
+                    ))
+
+                def _log(msg):
+                    self.after(0, lambda: self._desc_status_lbl.configure(
+                        text=msg, text_color="#E65100"
+                    ))
+
+                # Phase 1: Batch LLM call
+                results = batch_describe_to_bboxes(
+                    items=items,
+                    class_names=self._class_names,
+                    log_fn=_log,
+                )
+
+                # Store results by index
+                batch_results = {}
+                critiques_needed = 0
+                for idx, result in zip(described_indices, results):
+                    batch_results[idx] = result
+                    human_dets = self._batch_human_dets.get(idx, [])
+                    if human_dets and should_critique(human_dets, result.generated_detections):
+                        critiques_needed += 1
+
+                # Phase 2: Critique only where needed (skip if boxes agree)
+                if critiques_needed > 0:
+                    _log(f"Critiquing {critiques_needed} / {len(results)} images...")
+                    for idx, result in zip(described_indices, results):
+                        human_dets = self._batch_human_dets.get(idx, [])
+                        if human_dets and should_critique(human_dets, result.generated_detections):
+                            try:
+                                critique = critique_annotations(
+                                    image_path=result.image_path,
+                                    description=result.description,
+                                    human_detections=human_dets,
+                                    llm_detections=result.generated_detections,
+                                    class_names=self._class_names,
+                                )
+                                # Replace with refined detections
+                                if critique.refined_detections:
+                                    result.generated_detections = critique.refined_detections
+                            except Exception as exc:
+                                logger.warning("Critique failed for %s: %s", result.image_path, exc)
+
+                self.after(0, lambda: self._on_batch_done(batch_results, described_indices))
+            except Exception as exc:
+                self.after(0, lambda: self._on_batch_error(str(exc)))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_batch_done(self, batch_results, described_indices):
+        """Handle completed batch processing. Switch to review phase."""
+        self._batch_results = batch_results
+        self._batch_btn.configure(state="normal", text="Process Batch")
+        self._accept_btn.configure(state="normal")
+
+        # Show Generate Boxes button for per-image re-generation if needed
+        self._gen_boxes_btn.pack(side="right", padx=4)
+
+        n = len(batch_results)
+        self._desc_status_lbl.configure(
+            text=f"Batch complete: {n} images annotated", text_color="#3fb950"
+        )
+
+        # Switch to review phase — go back to first described image
+        self._review_phase = "review"
+        self._review_queue = [idx for idx in self._review_queue if idx in described_indices]
+        self._review_pos = 0
+
+        self._update_review_progress()
+
+        if self._review_queue:
+            first_idx = self._review_queue[0]
+            self._select_image(first_idx)
+            self._review_image_opened_at = _time.monotonic()
+            self._load_batch_result_for_current()
+
+    def _on_batch_error(self, msg):
+        """Handle failed batch processing."""
+        self._batch_btn.configure(state="normal", text="Process Batch")
+        self._accept_btn.configure(state="normal")
+        self._desc_status_lbl.configure(text=f"Batch error: {msg[:60]}", text_color="#f85149")
+
+    def _load_batch_result_for_current(self):
+        """Load LLM batch result for the current image and show comparison."""
+        if self._current_idx is None:
+            return
+
+        idx = self._current_idx
+        result = self._batch_results.get(idx)
+        if not result:
+            self._desc_set_text("")
+            self._show_extraction_result("(no LLM result for this image)")
+            return
+
+        # Show description
+        desc = self._batch_descriptions.get(idx, "")
+        self._desc_set_text(desc)
+
+        human_dets = self._batch_human_dets.get(idx, [])
+        llm_dets = result.generated_detections
+        n_human = len(human_dets)
+        n_llm = len(llm_dets)
+
+        # Render side-by-side comparison
+        try:
+            from pipeline.describe_annotator import render_comparison
+            import tempfile
+
+            comparison_img = render_comparison(
+                result.image_path, human_dets, llm_dets, self._class_names
+            )
+            comp_path = Path(tempfile.gettempdir()) / f"comparison_{idx}.jpg"
+            comparison_img.save(str(comp_path), quality=95)
+
+            preview = (
+                f"Human: {n_human} boxes | LLM: {n_llm} boxes\n"
+                f"Comparison: {comp_path}"
+            )
+        except Exception:
+            preview = f"Human: {n_human} boxes | LLM: {n_llm} boxes"
+
+        self._show_extraction_result(preview)
+        self._desc_status_lbl.configure(
+            text=f"H:{n_human} | L:{n_llm} — review & correct",
+            text_color="#3fb950",
+        )
+
+        # Inject LLM detections into entry for editing
+        entry = self._edited[idx]
+        self._generated_detections_snapshot = copy.deepcopy(llm_dets)
+        entry["detections"] = copy.deepcopy(llm_dets)
+        self._dirty.add(idx)
+        self._render_detail()
+        self._render_detection_list()
+
+    def _finish_review_queue(self):
+        """Complete the review session, save ReviewSession to disk, show summary."""
+        if self._review_session:
+            self._review_session.finish()
+            save_path = self._review_session.save()
+            summary = self._review_session.summary()
+            self._review_status_lbl.configure(
+                text=f"Done! Saved to {save_path.name}", text_color="#3fb950",
+            )
+            self._show_extraction_result(summary)
+
+        self._review_progress_lbl.configure(
+            text=f"{len(self._review_queue)} / {len(self._review_queue)}"
+        )
+        self._accept_btn.configure(state="disabled")
+        self._skip_btn.configure(state="disabled")
+        self._batch_btn.configure(state="disabled")
+
+    # ------------------------------------------------------------------
+    # Virtualized sidebar — draw rows as canvas items, no per-row widgets
     # ------------------------------------------------------------------
 
     def _build_sidebar_list(self):
-        """Create one lightweight row per image.  No thumbnails loaded
-        up-front — the selected image's thumbnail is shown in the detail
-        canvas instead."""
-        self._card_widgets = {}
-        for i, entry in enumerate(self._edited):
-            self._create_sidebar_row(i, entry)
+        """Configure canvas scroll region for all entries (no widgets created)."""
+        self._card_widgets = {}  # kept empty — guard clauses handle this
+        total_h = len(self._edited) * self._ROW_HEIGHT
+        self._sidebar_canvas.configure(scrollregion=(0, 0, 230, total_h))
+        self._redraw_sidebar()
 
-    def _create_sidebar_row(self, idx, entry):
-        """Create a single compact sidebar row (text only, no image load)."""
-        row = ctk.CTkFrame(self._thumb_scroll, cursor="hand2", height=30)
-        row.pack(fill="x", padx=2, pady=1)
-        row.pack_propagate(False)
+    def _redraw_sidebar(self):
+        """Redraw only the visible rows on the sidebar canvas."""
+        c = self._sidebar_canvas
+        c.delete("all")
+        if not self._edited:
+            return
 
-        # Detection count badge
-        n_det = len(entry["detections"])
-        badge_color = "#4CAF50" if n_det > 0 else "gray50"
-        badge = ctk.CTkLabel(
-            row,
-            text=str(n_det),
-            font=ctk.CTkFont(size=10, weight="bold"),
-            fg_color=badge_color,
-            corner_radius=6,
-            width=26,
-            height=20,
-        )
-        badge.pack(side="right", padx=(2, 6), pady=4)
+        cw = c.winfo_width() or 230
+        rh = self._ROW_HEIGHT
+        total = len(self._edited)
 
-        # Dirty indicator
-        dirty_lbl = ctk.CTkLabel(
-            row,
-            text="*" if idx in self._dirty else "",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="orange",
-            width=12,
-        )
-        dirty_lbl.pack(side="right", padx=0, pady=4)
+        # Determine visible range from scroll position
+        try:
+            top_frac = c.yview()[0]
+        except Exception:
+            top_frac = 0.0
+        top_px = int(top_frac * total * rh)
+        vis_h = c.winfo_height() or 400
 
-        # Filename
-        name = entry["image_name"]
-        if len(name) > 32:
-            name = name[:29] + "..."
-        name_lbl = ctk.CTkLabel(row, text=name, font=ctk.CTkFont(size=11), anchor="w")
-        name_lbl.pack(side="left", padx=(6, 4), pady=4, fill="x", expand=True)
+        first = max(top_px // rh, 0)
+        last = min((top_px + vis_h) // rh + 1, total)
 
-        # Click binding on all children
-        for widget in (row, badge, dirty_lbl, name_lbl):
-            widget.bind("<Button-1>", lambda e, i=idx: self._select_image(i))
+        for i in range(first, last):
+            y = i * rh
+            entry = self._edited[i]
+            is_active = i == self._current_idx
+            n_det = len(entry["detections"])
+            is_dirty = i in self._dirty
 
-        # Store references for targeted updates
-        self._card_widgets[idx] = {
-            "row": row,
-            "badge": badge,
-            "dirty": dirty_lbl,
-            "name": name_lbl,
-        }
-        self._update_card_highlight(idx)
+            # Background
+            bg = "#2A6496" if is_active else "#1a1a1a"
+            c.create_rectangle(0, y, cw, y + rh, fill=bg, outline="")
+
+            # Filename
+            name = entry["image_name"]
+            if len(name) > 30:
+                name = name[:27] + "..."
+            text_col = "white" if is_active else "#c8c8c8"
+            c.create_text(8, y + rh // 2, text=name, fill=text_col,
+                          anchor="w", font=("sans-serif", 10))
+
+            # Detection count badge
+            badge_col = "#4CAF50" if n_det > 0 else "#666666"
+            bx = cw - 22
+            by = y + rh // 2
+            c.create_oval(bx - 10, by - 9, bx + 10, by + 9, fill=badge_col, outline="")
+            c.create_text(bx, by, text=str(n_det), fill="white",
+                          font=("sans-serif", 9, "bold"))
+
+            # Dirty indicator
+            if is_dirty:
+                c.create_text(cw - 40, y + rh // 2, text="*", fill="orange",
+                              font=("sans-serif", 12, "bold"))
+
+    def _on_sidebar_click(self, event):
+        """Translate canvas click to image index and select it."""
+        if not self._edited:
+            return
+        # Convert canvas event y to scroll-adjusted y
+        top_frac = self._sidebar_canvas.yview()[0]
+        total_h = len(self._edited) * self._ROW_HEIGHT
+        abs_y = event.y + int(top_frac * total_h)
+        idx = abs_y // self._ROW_HEIGHT
+        if 0 <= idx < len(self._edited):
+            self._select_image(idx)
+
+    def _on_sidebar_mousewheel(self, event):
+        """Handle mouse wheel scrolling on the sidebar canvas."""
+        if event.num == 4:  # Linux scroll up
+            self._sidebar_canvas.yview_scroll(-3, "units")
+        elif event.num == 5:  # Linux scroll down
+            self._sidebar_canvas.yview_scroll(3, "units")
+        else:  # Windows/macOS
+            self._sidebar_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        self._redraw_sidebar()
 
     def _update_card_highlight(self, idx):
-        """Update a single card's active/inactive appearance."""
-        if idx not in self._card_widgets:
-            return
-        card = self._card_widgets[idx]
-        is_active = idx == self._current_idx
-        if is_active:
-            card["row"].configure(fg_color=("#3B8ED0", "#2A6496"), border_width=0)
-            card["name"].configure(text_color="white")
-        else:
-            card["row"].configure(fg_color="transparent", border_width=0)
-            card["name"].configure(text_color=("gray10", "gray90"))
+        """Redraw sidebar to reflect highlight change (cheap — canvas items only)."""
+        self._redraw_sidebar()
 
     def _update_card_badge(self, idx):
-        """Update badge count and dirty indicator for one card."""
-        if idx not in self._card_widgets:
+        """Redraw sidebar to reflect badge/dirty change."""
+        self._redraw_sidebar()
+
+    def _scroll_sidebar_to(self, idx):
+        """Ensure the row for idx is visible in the sidebar canvas."""
+        if not self._edited:
             return
-        card = self._card_widgets[idx]
-        entry = self._edited[idx]
-        n_det = len(entry["detections"])
-        badge_color = "#4CAF50" if n_det > 0 else "gray50"
-        card["badge"].configure(text=str(n_det), fg_color=badge_color)
-        card["dirty"].configure(text="*" if idx in self._dirty else "")
+        total = len(self._edited)
+        rh = self._ROW_HEIGHT
+        vis_h = self._sidebar_canvas.winfo_height() or 400
+        row_top = idx * rh
+        row_bot = row_top + rh
+        # Current viewport
+        top_frac = self._sidebar_canvas.yview()[0]
+        top_px = int(top_frac * total * rh)
+        bot_px = top_px + vis_h
+        if row_top < top_px:
+            self._sidebar_canvas.yview_moveto(row_top / (total * rh))
+        elif row_bot > bot_px:
+            self._sidebar_canvas.yview_moveto((row_bot - vis_h) / (total * rh))
 
     # ------------------------------------------------------------------
     # PIL image cache (LRU, max 5 full-size images in memory)
@@ -600,6 +1600,12 @@ class _BaseEditorWindow(ctk.CTkToplevel):
     # ------------------------------------------------------------------
 
     def _select_image(self, idx):
+        # Auto-save description for the image we're leaving
+        if self._review_mode and self._current_idx is not None:
+            text = self._desc_get_text()
+            if text:
+                self._batch_descriptions[self._current_idx] = text
+
         # Record time spent on previous image
         if self._image_opened_at is not None:
             elapsed = _time.monotonic() - self._image_opened_at
@@ -615,13 +1621,19 @@ class _BaseEditorWindow(ctk.CTkToplevel):
         self._draw_start = None
         self._canvas.configure(cursor="")
 
-        # Update only the two affected sidebar cards (old and new)
-        if prev is not None:
-            self._update_card_highlight(prev)
-        self._update_card_highlight(idx)
+        # (Parent mode: user clicks "Apply Parent" button manually after previewing)
+
+        # Scroll sidebar to keep selected row visible, then redraw
+        self._scroll_sidebar_to(idx)
+        self._redraw_sidebar()
 
         self._render_detail()
         self._render_detection_list()
+
+        # Auto-load description for the image we're arriving at
+        if self._review_mode and self._desc_mode:
+            saved_desc = self._batch_descriptions.get(idx, "")
+            self._desc_set_text(saved_desc)
 
     def _render_detail(self):
         if self._current_idx is None:
@@ -955,6 +1967,7 @@ class _BaseEditorWindow(ctk.CTkToplevel):
         images_dir.mkdir(parents=True, exist_ok=True)
 
         saved_count = 0
+        corrected_reviews = []  # ImageReview records for feedback persistence
         saved_indices = list(self._dirty)
         for idx in sorted(saved_indices):
             entry = self._edited[idx]
@@ -983,7 +1996,56 @@ class _BaseEditorWindow(ctk.CTkToplevel):
 
             saved_count += 1
 
+            # Record correction feedback (diff against load-time snapshot)
+            original_dets = self._load_snapshot.get(idx, [])
+            final_dets = copy.deepcopy(entry.get("detections", []))
+            corrections_made = len(final_dets) != len(original_dets)
+            if not corrections_made and final_dets:
+                for fd, od in zip(final_dets, original_dets):
+                    if (fd.get("bbox") != od.get("bbox")
+                            or fd.get("class_id") != od.get("class_id")):
+                        corrections_made = True
+                        break
+
+            if corrections_made:
+                from datetime import datetime
+                from pipeline.review_feedback import ImageReview
+                review_time = 0.0
+                if self._image_opened_at is not None:
+                    review_time = _time.monotonic() - self._image_opened_at
+                corrected_reviews.append(ImageReview(
+                    image_path=entry["image_path"],
+                    image_name=entry["image_name"],
+                    description="",
+                    generated_detections=original_dets,
+                    final_detections=final_dets,
+                    corrections_made=True,
+                    timestamp=datetime.now().isoformat(),
+                    review_time_sec=review_time,
+                ))
+
+        # Persist correction feedback (even outside describe-and-review mode)
+        if corrected_reviews and not self._review_mode:
+            from pipeline.review_feedback import ReviewSession
+            session = ReviewSession.create(
+                total_images=len(corrected_reviews),
+                source_path="annotation_editor",
+            )
+            for r in corrected_reviews:
+                session.add_review(r)
+            session.finish()
+            session.save()
+            logger.info(
+                "Saved %d correction(s) to review feedback", len(corrected_reviews)
+            )
+
         self._update_dataset_yaml()
+
+        # Update load snapshots to current state (so re-saving doesn't re-record)
+        for idx in saved_indices:
+            self._load_snapshot[idx] = copy.deepcopy(
+                self._edited[idx].get("detections", [])
+            )
 
         self._saved_to_train.update(saved_indices)
         self._dirty.clear()
@@ -1061,6 +2123,10 @@ class AnnotationWindow(_BaseEditorWindow):
     """Opened from the 'Annotate' sidebar button.  Loads screenshots from
     screenshots/ and any existing labels from yolo_dataset/train/labels/.
     No model required.
+
+    Includes experimental Description Mode — toggle to annotate via natural
+    language descriptions instead of bounding boxes.  LLM extracts structured
+    visual context per scene for use in batch annotation.
     """
 
     def __init__(self, parent, screenshots_dir=None, yolo_dataset_path=None):
@@ -1077,6 +2143,13 @@ class AnnotationWindow(_BaseEditorWindow):
             title="Annotation Tool - Create & Edit Labels",
             show_conf=False,
         )
+
+        # Enable description mode toggle
+        self._enable_description_mode_toggle()
+        self.bind("<Control-Return>", lambda e: (
+            self._generate_boxes_from_description() if self._review_mode
+            else self._extract_description()
+        ))
 
 
 # ======================================================================

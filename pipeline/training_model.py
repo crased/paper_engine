@@ -67,6 +67,26 @@ def train_model(
         device = "cpu"
         print("No GPU found, using CPU")
 
+    # Build augmentation kwargs from config (only pass non-None values)
+    aug_keys = [
+        "hsv_h", "hsv_s", "hsv_v", "degrees", "translate", "scale",
+        "shear", "perspective", "flipud", "fliplr", "mosaic", "mixup",
+        "erasing", "close_mosaic",
+    ]
+    aug_kwargs = {}
+    for key in aug_keys:
+        val = config.get(key.upper())
+        if val is not None:
+            aug_kwargs[key] = val
+
+    # Build optional training kwargs from config
+    optional_keys = {"nbs": "NBS", "cos_lr": "COS_LR", "amp": "AMP"}
+    optional_kwargs = {}
+    for kwarg, conf_key in optional_keys.items():
+        val = config.get(conf_key)
+        if val is not None:
+            optional_kwargs[kwarg] = val
+
     # Train the model
     results = model.train(
         data=str(dataset_yaml),
@@ -80,6 +100,10 @@ def train_model(
         save=config.SAVE_CHECKPOINTS,
         plots=config.GENERATE_PLOTS,
         verbose=config.VERBOSE,
+        workers=config.get("WORKERS") or 4,
+        cache=config.get("CACHE") or False,
+        **optional_kwargs,
+        **aug_kwargs,
     )
 
     # Get the actual save directory (YOLO auto-increments name if it exists)
@@ -152,17 +176,21 @@ def main(on_epoch_end=None):
         print("Or place a YOLO format dataset in the dataset/ directory")
         return
 
-    # Look for data.yaml or dataset.yaml
+    # Look for dataset YAML (config-specified first, then fallbacks)
     yaml_file = None
-    for yaml_name in ["data.yaml", "dataset.yaml"]:
-        potential_yaml = dataset_path / yaml_name
-        if potential_yaml.exists():
-            yaml_file = potential_yaml
-            break
+    preferred = config.get("DATASET_YAML")
+    yaml_names = [preferred] if preferred else []
+    yaml_names += ["data.yaml", "dataset_gameplay.yaml", "dataset.yaml"]
+    for yaml_name in yaml_names:
+        if yaml_name:
+            potential_yaml = dataset_path / yaml_name
+            if potential_yaml.exists():
+                yaml_file = potential_yaml
+                break
 
     if not yaml_file:
         print(f"\nERROR: No dataset configuration YAML found in {dataset_path}")
-        print("Expected: data.yaml or dataset.yaml")
+        print("Expected: data.yaml, dataset_gameplay.yaml, or dataset.yaml")
         return
 
     print(f"\nFound dataset configuration: {yaml_file}")

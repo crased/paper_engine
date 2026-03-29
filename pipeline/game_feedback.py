@@ -11,13 +11,15 @@ Two modes of operation:
     python -m pipeline.game_feedback --game-dir /path/to/game/
     python -m pipeline.game_feedback --game-dir /path/to/game/ --prefix /path/to/prefix/
 
-The directory-based mode collects data from up to 6 sources:
+The directory-based mode collects data from up to 8 sources:
   1. Engine config files (ini, logs, benchmarks)
   2. Engine detection (UE3/UE4/Unity from directory structure)
   3. Community data (ProtonDB API)
-  4. Wine/DXVK prefix scan (Proton version, caches, DLL overrides)
+  4. Wine/DXVK prefix scan (registry, DLLs, winetricks, crash logs)
   5. Known fix detection (game-specific community fixes)
-  6. LLM analysis (fed all sources, acts as engine QA expert)
+  6. System info (GPU, Vulkan driver, kernel, esync/fsync)
+  7. DXVK/VKD3D config and logs
+  8. LLM analysis (fed all sources, acts as engine QA expert)
 
 Or called from the GUI via ``generate_report()`` / ``generate_report_from_dir()``.
 """
@@ -1505,8 +1507,9 @@ def fetch_protondb(game_name: str, log_fn=None) -> Dict[str, Any]:
 
 
 def find_wine_prefix(game_name: str) -> Optional[Path]:
-    """Auto-detect Wine prefix.  Checks Heroic and Steam paths."""
+    """Auto-detect Wine prefix.  Checks Heroic, Steam, Lutris, Bottles."""
     home = Path.home()
+    norm = game_name.lower().replace(" ", "").replace(":", "").replace("-", "")
 
     # Heroic: ~/Games/Heroic/Prefixes/default/<game>/
     heroic_base = home / "Games" / "Heroic" / "Prefixes" / "default"
@@ -1514,8 +1517,6 @@ def find_wine_prefix(game_name: str) -> Optional[Path]:
         exact = heroic_base / game_name
         if exact.is_dir():
             return exact
-        # Fuzzy match
-        norm = game_name.lower().replace(" ", "").replace(":", "").replace("-", "")
         for d in heroic_base.iterdir():
             if d.is_dir():
                 d_norm = (
@@ -1532,6 +1533,27 @@ def find_wine_prefix(game_name: str) -> Optional[Path]:
         )
         if steam_pfx.is_dir():
             return steam_pfx
+
+    # Lutris: ~/.local/share/lutris/runners/wine/*/
+    lutris_base = home / ".local" / "share" / "lutris"
+    if lutris_base.is_dir():
+        # Lutris game configs store prefix paths — check common location
+        lutris_pfx = lutris_base / "runners" / "wine" / "prefixes"
+        if lutris_pfx.is_dir():
+            for d in lutris_pfx.iterdir():
+                if d.is_dir():
+                    d_norm = d.name.lower().replace(" ", "").replace("-", "")
+                    if norm in d_norm or d_norm in norm:
+                        return d
+
+    # Bottles: ~/.local/share/bottles/bottles/*/
+    bottles_base = home / ".local" / "share" / "bottles" / "bottles"
+    if bottles_base.is_dir():
+        for d in bottles_base.iterdir():
+            if d.is_dir():
+                d_norm = d.name.lower().replace(" ", "").replace("-", "")
+                if norm in d_norm or d_norm in norm:
+                    return d
 
     return None
 
@@ -1657,22 +1679,180 @@ def scan_wine_prefix(prefix_dir: Path, log_fn=None) -> Dict[str, Any]:
         if dxvk_vars:
             _log(f"  DXVK env: {dxvk_vars}\n")
 
-    # -- dxgi.dll / d3d11.dll check --
+    # -- dxgi.dll / d3d11.dll / d3d9.dll / d3d12.dll check --
     sys32 = prefix_dir / "drive_c" / "windows" / "system32"
-    for dll_name in ("dxgi", "d3d11"):
+    for dll_name in ("dxgi", "d3d11", "d3d9", "d3d12"):
         dll_path = sys32 / f"{dll_name}.dll"
         if dll_path.exists():
             size_mb = dll_path.stat().st_size / (1024 * 1024)
-            is_dxvk = size_mb > 2.0
+            # DXVK/VKD3D replacement DLLs are typically >2MB
+            is_replacement = size_mb > 2.0
+            label = "Wine built-in"
+            if is_replacement:
+                if dll_name == "d3d12":
+                    label = "VKD3D-Proton"
+                elif dll_name == "d3d9":
+                    label = "DXVK (D3D9)"
+                else:
+                    label = "DXVK"
             result["wine_config"][dll_name] = {
                 "size_mb": round(size_mb, 1),
-                "is_dxvk": is_dxvk,
+                "is_dxvk": is_replacement,
+                "label": label,
             }
-            if dll_name == "dxgi":
-                _log(
-                    f"  dxgi.dll: {'DXVK' if is_dxvk else 'Wine built-in'} "
-                    f"({size_mb:.1f} MB)\n"
+            if dll_name in ("dxgi", "d3d12"):
+                _log(f"  {dll_name}.dll: {label} ({size_mb:.1f} MB)\n")
+
+    # -- system.reg: Wine\\Direct3D settings --
+    system_reg = prefix_dir / "system.reg"
+    d3d_settings = _parse_wine_registry_section(
+        system_reg, "Software\\\\Wine\\\\Direct3D"
+    )
+    user_d3d = _parse_wine_registry_section(
+        prefix_dir / "user.reg", "Software\\\\Wine\\\\Direct3D"
+    )
+    # user.reg overrides system.reg
+    all_d3d = {**d3d_settings, **user_d3d}
+    if all_d3d:
+        result["wine_d3d"] = all_d3d
+        _log(f"  Wine\\Direct3D: {len(all_d3d)} settings\n")
+        notable_d3d = {
+            k: v
+            for k, v in all_d3d.items()
+            if k.lower()
+            in (
+                "csmt",
+                "maxversiongl",
+                "videomemorysize",
+                "shader_model",
+                "offscreenrenderingmode",
+                "strictdrawordering",
+                "useglsl",
+            )
+        }
+        if notable_d3d:
+            _log(f"    Notable: {notable_d3d}\n")
+
+    # -- Wine\\AppDefaults (per-game overrides) --
+    app_defaults = {}
+    user_reg = prefix_dir / "user.reg"
+    if user_reg.exists():
+        try:
+            reg_text = user_reg.read_text(encoding="utf-8", errors="replace")
+            for m in re.finditer(
+                r"\[Software\\\\Wine\\\\AppDefaults\\\\([^\]]+)\]",
+                reg_text,
+            ):
+                app_name = m.group(1)
+                section_data = _parse_wine_registry_section(
+                    user_reg,
+                    f"Software\\\\Wine\\\\AppDefaults\\\\{app_name}",
                 )
+                if section_data:
+                    app_defaults[app_name] = section_data
+        except Exception:
+            pass
+    if app_defaults:
+        result["app_defaults"] = app_defaults
+        _log(f"  AppDefaults: {len(app_defaults)} app overrides\n")
+
+    # -- winetricks.log --
+    winetricks_log = prefix_dir / "winetricks.log"
+    if winetricks_log.exists():
+        try:
+            verbs = [
+                line.strip()
+                for line in winetricks_log.read_text().splitlines()
+                if line.strip() and not line.startswith("#")
+            ]
+            result["winetricks"] = verbs
+            _log(f"  winetricks: {len(verbs)} verbs ({', '.join(verbs[:8])})\n")
+        except Exception:
+            pass
+
+    # -- Proton tracked_files (what Proton installed) --
+    tracked = prefix_dir / "tracked_files"
+    if tracked.exists():
+        try:
+            files = [l.strip() for l in tracked.read_text().splitlines() if l.strip()]
+            result["proton_tracked_count"] = len(files)
+            _log(f"  Proton tracked files: {len(files)}\n")
+        except Exception:
+            pass
+
+    # -- DXVK state cache next to game executables --
+    # (handled externally — this function only scans prefix)
+
+    # -- Crash logs inside prefix --
+    drive_c = prefix_dir / "drive_c"
+    crash_logs: Dict[str, str] = {}
+    _MAX_CRASH_CHARS = 8000
+    crash_chars = 0
+    if drive_c.is_dir():
+        # Discover actual user directories — skip symlinks to avoid
+        # loops (Wine prefixes have e.g. biel -> steamuser)
+        users_dir = drive_c / "users"
+        user_dirs = []
+        if users_dir.is_dir():
+            user_dirs = [
+                d
+                for d in users_dir.iterdir()
+                if d.is_dir()
+                and not d.is_symlink()
+                and d.name not in ("Public", "Default")
+            ]
+            # Report all names (including symlink names) for context
+            all_names = [
+                d.name
+                for d in users_dir.iterdir()
+                if d.is_dir() and d.name not in ("Public", "Default")
+            ]
+            if all_names:
+                result["prefix_users"] = all_names
+                if all_names != ["steamuser"]:
+                    _log(f"  Prefix users: {', '.join(all_names)}\n")
+
+        # Search for crash dumps and logs in user AppData dirs.
+        # IMPORTANT: No ** patterns — Wine prefixes have symlink loops
+        # (e.g. Local Settings/Application Data -> ../AppData/Local)
+        # that cause infinite recursion with recursive globs.
+        crash_patterns = [
+            "AppData/Local/CrashDumps/*.txt",
+            "AppData/Local/CrashDumps/*.log",
+            "AppData/Local/*/Crashes/*.log",
+            "AppData/Local/*/Saved/Crashes/*.log",
+            "AppData/Local/*/Saved/Crashes/*/*.log",
+            "AppData/Local/*/Saved/Logs/*.log",
+            "AppData/LocalLow/*/Player.log",
+            "AppData/LocalLow/*/Player-prev.log",
+            "AppData/LocalLow/Unity/*/Player.log",
+            "AppData/LocalLow/Unity/*/Player-prev.log",
+        ]
+        for user_d in user_dirs:
+            for pattern in crash_patterns:
+                try:
+                    matches = sorted(user_d.glob(pattern))
+                except (RecursionError, OSError):
+                    continue
+                for crash_file in matches:
+                    if not crash_file.is_file() or crash_file.is_symlink():
+                        continue
+                    if crash_chars >= _MAX_CRASH_CHARS:
+                        break
+                    try:
+                        text = crash_file.read_text(encoding="utf-8", errors="replace")
+                        if len(text) > 3000:
+                            # Keep tail (most recent errors)
+                            text = "... (truncated) ...\n" + text[-3000:]
+                        rel = str(crash_file.relative_to(drive_c))
+                        crash_logs[rel] = text
+                        crash_chars += len(text)
+                        _log(f"  Crash log: {rel}\n")
+                    except Exception:
+                        continue
+
+    if crash_logs:
+        result["crash_logs"] = crash_logs
 
     return result
 
@@ -1859,6 +2039,367 @@ def _check_wine_generic(prefix_dir: Path, result: Dict, log_fn):
 
 
 # ======================================================================
+# Source 6: System info (GPU, driver, Vulkan, kernel)
+# ======================================================================
+
+
+def collect_system_info(log_fn=None) -> Dict[str, Any]:
+    """Collect host system info relevant to game compatibility.
+
+    Reads from /sys, /proc, and optionally ``vulkaninfo`` to identify
+    GPU, driver version, Vulkan support, kernel version, and
+    esync/fsync capability.  No subprocess calls that require elevated
+    privileges.
+    """
+    import shutil
+    import subprocess
+
+    def _log(msg: str):
+        if log_fn:
+            log_fn(msg)
+        else:
+            print(msg, end="")
+
+    result: Dict[str, Any] = {
+        "kernel": "",
+        "gpu": [],
+        "vulkan": {},
+        "esync_fsync": {},
+        "gaming_tools": {},
+    }
+
+    # -- Kernel version --
+    try:
+        result["kernel"] = Path("/proc/version").read_text().strip()
+        _log(f"  Kernel: {result['kernel'].split()[2]}\n")
+    except Exception:
+        pass
+
+    # -- GPU(s) from /sys/class/drm --
+    drm_base = Path("/sys/class/drm")
+    if drm_base.is_dir():
+        seen_pci: set = set()
+        for card_dir in sorted(drm_base.glob("card[0-9]*")):
+            device_dir = card_dir / "device"
+            if not device_dir.is_dir():
+                continue
+            # Avoid duplicates from render nodes
+            pci_id = ""
+            try:
+                vendor = (device_dir / "vendor").read_text().strip()
+                device = (device_dir / "device").read_text().strip()
+                pci_id = f"{vendor}:{device}"
+                if pci_id in seen_pci:
+                    continue
+                seen_pci.add(pci_id)
+            except Exception:
+                continue
+
+            gpu_info: Dict[str, str] = {"pci_id": pci_id, "card": card_dir.name}
+            # Vendor name
+            vendor_names = {"0x1002": "AMD", "0x10de": "NVIDIA", "0x8086": "Intel"}
+            gpu_info["vendor"] = vendor_names.get(vendor, vendor)
+
+            # Driver module
+            driver_link = device_dir / "driver"
+            if driver_link.is_symlink():
+                gpu_info["driver"] = driver_link.resolve().name
+
+            # VRAM (if reported)
+            mem_file = device_dir / "mem_info_vram_total"
+            if mem_file.exists():
+                try:
+                    vram_bytes = int(mem_file.read_text().strip())
+                    gpu_info["vram_mb"] = str(vram_bytes // (1024 * 1024))
+                except Exception:
+                    pass
+
+            # Mesa driver version from /sys
+            for uevent_path in device_dir.glob("drm/card*/uevent"):
+                try:
+                    for line in uevent_path.read_text().splitlines():
+                        if line.startswith("DRIVER="):
+                            gpu_info.setdefault("driver", line.split("=", 1)[1])
+                except Exception:
+                    pass
+
+            result["gpu"].append(gpu_info)
+            vram_str = (
+                f", {gpu_info['vram_mb']}MB VRAM" if "vram_mb" in gpu_info else ""
+            )
+            _log(
+                f"  GPU: {gpu_info['vendor']} {pci_id} "
+                f"[{gpu_info.get('driver', '?')}]{vram_str}\n"
+            )
+
+    # -- Vulkan info (quick summary, no full dump) --
+    vulkaninfo_bin = shutil.which("vulkaninfo")
+    if vulkaninfo_bin:
+        try:
+            proc = subprocess.run(
+                [vulkaninfo_bin, "--summary"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if proc.returncode == 0:
+                # Parse per-GPU blocks from vulkaninfo --summary
+                vk_devices: List[Dict[str, str]] = []
+                current_gpu: Dict[str, str] = {}
+                in_devices = False
+                for line in proc.stdout.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("Devices:"):
+                        in_devices = True
+                        continue
+                    if not in_devices:
+                        continue
+                    if re.match(r"GPU\d+:$", stripped):
+                        if current_gpu:
+                            vk_devices.append(current_gpu)
+                        current_gpu = {"id": stripped.rstrip(":")}
+                        continue
+                    if not stripped or stripped.startswith("="):
+                        continue
+                    if "=" in stripped and current_gpu is not None:
+                        k, _, v = stripped.partition("=")
+                        current_gpu[k.strip()] = v.strip()
+                if current_gpu:
+                    vk_devices.append(current_gpu)
+
+                # Prefer discrete GPU, fall back to first
+                primary = vk_devices[0] if vk_devices else {}
+                for dev in vk_devices:
+                    if "DISCRETE" in dev.get("deviceType", ""):
+                        primary = dev
+                        break
+
+                result["vulkan"] = {
+                    "available": True,
+                    "devices": vk_devices,
+                    "api_version": primary.get("apiVersion", ""),
+                    "driver_version": primary.get("driverVersion", ""),
+                    "driver_name": primary.get("driverName", ""),
+                    "driver_info": primary.get("driverInfo", ""),
+                    "device_name": primary.get("deviceName", ""),
+                    "device_type": primary.get("deviceType", ""),
+                }
+                _log(
+                    f"  Vulkan: {primary.get('deviceName', '?')} "
+                    f"(driver {primary.get('driverInfo', '?')})\n"
+                )
+                if len(vk_devices) > 1:
+                    _log(f"  Vulkan: {len(vk_devices)} devices total\n")
+            else:
+                result["vulkan"] = {"available": False, "error": proc.stderr[:200]}
+                _log("  Vulkan: vulkaninfo failed\n")
+        except Exception as e:
+            result["vulkan"] = {"available": False, "error": str(e)}
+    else:
+        result["vulkan"] = {"available": False, "error": "vulkaninfo not installed"}
+        _log("  Vulkan: vulkaninfo not found\n")
+
+    # -- esync / fsync capability --
+    esync_fsync: Dict[str, Any] = {}
+    try:
+        file_max = int(Path("/proc/sys/fs/file-max").read_text().strip())
+        esync_fsync["file_max"] = file_max
+        # esync needs high file-max (>= 524288 is typical)
+        esync_fsync["esync_capable"] = file_max >= 524288
+    except Exception:
+        esync_fsync["esync_capable"] = None
+
+    # fsync: check kernel config or version (5.16+ has futex_waitv)
+    try:
+        kver = Path("/proc/version").read_text().strip()
+        ver_match = re.search(r"(\d+)\.(\d+)", kver)
+        if ver_match:
+            major, minor = int(ver_match.group(1)), int(ver_match.group(2))
+            esync_fsync["fsync_capable"] = (major, minor) >= (5, 16)
+            esync_fsync["kernel_version"] = f"{major}.{minor}"
+    except Exception:
+        esync_fsync["fsync_capable"] = None
+
+    result["esync_fsync"] = esync_fsync
+    if esync_fsync.get("kernel_version"):
+        _log(
+            f"  Sync: kernel {esync_fsync['kernel_version']}, "
+            f"esync={'yes' if esync_fsync.get('esync_capable') else 'no'}, "
+            f"fsync={'yes' if esync_fsync.get('fsync_capable') else 'no'}\n"
+        )
+
+    # -- Gaming tools --
+    tools_check = ["gamemoderun", "mangohud", "gamescope"]
+    found_tools = {}
+    for tool in tools_check:
+        path = shutil.which(tool)
+        if path:
+            found_tools[tool] = path
+    result["gaming_tools"] = found_tools
+    if found_tools:
+        _log(f"  Tools: {', '.join(found_tools.keys())}\n")
+
+    return result
+
+
+# ======================================================================
+# Source 7: DXVK / VKD3D config and logs
+# ======================================================================
+
+
+def scan_dxvk_config(
+    game_dir: Path,
+    prefix_dir: Optional[Path] = None,
+    log_fn=None,
+) -> Dict[str, Any]:
+    """Read dxvk.conf from game directory and/or Wine prefix.
+
+    DXVK looks for ``dxvk.conf`` next to the game executable first,
+    then in the working directory.  This function checks both locations
+    plus common prefix-level paths.
+    """
+
+    def _log(msg: str):
+        if log_fn:
+            log_fn(msg)
+        else:
+            print(msg, end="")
+
+    result: Dict[str, Any] = {"found": False, "files": {}, "settings": {}}
+
+    search_paths: List[Path] = [
+        game_dir / "dxvk.conf",
+    ]
+    # Check common subdirectories where executables live
+    for sub in ("", "Binaries/Win64", "Binaries/Win32", "bin", "bin/x64"):
+        p = game_dir / sub / "dxvk.conf" if sub else game_dir / "dxvk.conf"
+        if p not in search_paths:
+            search_paths.append(p)
+
+    # Also check prefix-level (some users put it there)
+    if prefix_dir:
+        search_paths.append(prefix_dir / "dxvk.conf")
+        drive_c = prefix_dir / "drive_c"
+        if drive_c.is_dir():
+            search_paths.append(drive_c / "dxvk.conf")
+
+    for conf_path in search_paths:
+        if not conf_path.is_file():
+            continue
+        try:
+            text = conf_path.read_text(encoding="utf-8", errors="replace")
+            result["found"] = True
+            result["files"][str(conf_path)] = text
+
+            # Parse key = value pairs (ignoring comments)
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or line.startswith(";"):
+                    continue
+                if "=" in line:
+                    k, _, v = line.partition("=")
+                    result["settings"][k.strip()] = v.strip()
+
+            _log(f"  dxvk.conf: {conf_path} ({len(result['settings'])} settings)\n")
+        except Exception:
+            continue
+
+    if not result["found"]:
+        _log("  dxvk.conf: not found\n")
+
+    return result
+
+
+def scan_dxvk_logs(
+    game_dir: Path,
+    prefix_dir: Optional[Path] = None,
+    log_fn=None,
+) -> Dict[str, Any]:
+    """Find and read DXVK / VKD3D-Proton log files.
+
+    DXVK writes logs near the game executable by default, or to the
+    path specified by ``DXVK_LOG_PATH``.  VKD3D-Proton uses
+    ``VKD3D_DEBUG`` / ``VKD3D_LOG_FILE``.
+    """
+
+    def _log(msg: str):
+        if log_fn:
+            log_fn(msg)
+        else:
+            print(msg, end="")
+
+    result: Dict[str, Any] = {"found": False, "files": {}, "summary": {}}
+    _MAX_LOG_CHARS = 15000
+
+    # Search locations for DXVK logs
+    search_dirs: List[Path] = [game_dir]
+    for sub in ("Binaries/Win64", "Binaries/Win32", "bin", "bin/x64"):
+        d = game_dir / sub
+        if d.is_dir():
+            search_dirs.append(d)
+    # /tmp is a common DXVK log location
+    tmp = Path("/tmp")
+    if tmp.is_dir():
+        search_dirs.append(tmp)
+
+    log_patterns = ["dxvk*.log", "d3d11*.log", "dxgi*.log", "vkd3d*.log"]
+
+    total_chars = 0
+    for search_dir in search_dirs:
+        for pattern in log_patterns:
+            for log_path in sorted(search_dir.glob(pattern)):
+                if not log_path.is_file():
+                    continue
+                try:
+                    text = log_path.read_text(encoding="utf-8", errors="replace")
+                    # Truncate long logs — keep head (init info) + tail (recent errors)
+                    if len(text) > _MAX_LOG_CHARS:
+                        head = text[: _MAX_LOG_CHARS // 2]
+                        tail = text[-((_MAX_LOG_CHARS // 2) - 100) :]
+                        text = (
+                            head
+                            + "\n\n... (truncated — showing head + tail) ...\n\n"
+                            + tail
+                        )
+                    result["found"] = True
+                    result["files"][str(log_path)] = text
+                    total_chars += len(text)
+
+                    # Extract key summary info from DXVK logs
+                    summary: Dict[str, str] = {}
+                    for line in text.splitlines()[:50]:  # Init info is at top
+                        if "DXVK" in line and "v" in line.lower():
+                            summary["dxvk_version"] = line.strip()
+                        elif "Device:" in line or "Adapter:" in line:
+                            summary["device"] = line.strip()
+                        elif "Driver:" in line:
+                            summary["driver"] = line.strip()
+                        elif "Vulkan:" in line:
+                            summary["vulkan"] = line.strip()
+                        elif "Feature level" in line:
+                            summary["feature_level"] = line.strip()
+                        elif "err:" in line.lower() or "error" in line.lower():
+                            summary.setdefault("first_error", line.strip())
+                    if summary:
+                        result["summary"][str(log_path)] = summary
+
+                    _log(f"  DXVK log: {log_path.name} ({len(text)} chars)\n")
+                except Exception:
+                    continue
+                if total_chars >= _MAX_LOG_CHARS * 3:
+                    break
+            if total_chars >= _MAX_LOG_CHARS * 3:
+                break
+        if total_chars >= _MAX_LOG_CHARS * 3:
+            break
+
+    if not result["found"]:
+        _log("  DXVK logs: none found\n")
+
+    return result
+
+
+# ======================================================================
 # Multi-source LLM prompt builder
 # ======================================================================
 
@@ -1868,9 +2409,13 @@ def _build_dir_system_prompt(
     community: Dict[str, Any],
     prefix_info: Dict[str, Any],
     fixes: Dict[str, Any],
+    system_info: Optional[Dict[str, Any]] = None,
+    dxvk_config: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build a dynamic system prompt based on available data sources."""
     engine = engine_info.get("engine", "unknown")
+    system_info = system_info or {}
+    dxvk_config = dxvk_config or {}
 
     # -- Engine expertise block --
     if "unreal engine 3" in engine.lower():
@@ -1955,6 +2500,14 @@ def _build_dir_system_prompt(
             f"Known fixes: {len(fixes.get('installed', []))} installed, "
             f"{len(fixes.get('missing', []))} missing"
         )
+    if system_info.get("gpu"):
+        gpu_names = [g.get("vendor", "?") for g in system_info["gpu"]]
+        sources.append(
+            f"System: {', '.join(gpu_names)} GPU, "
+            f"Vulkan {'available' if system_info.get('vulkan', {}).get('available') else 'N/A'}"
+        )
+    if dxvk_config.get("found"):
+        sources.append(f"DXVK config: {len(dxvk_config.get('settings', {}))} settings")
     sources_text = "\n".join(f"  {i + 1}. {s}" for i, s in enumerate(sources))
 
     # -- Assemble (plain string, no .format()) --
@@ -1963,7 +2516,8 @@ def _build_dir_system_prompt(
         "{\n"
         '  "ratings": [\n'
         '    {"category": "Engine Configuration", "score": 3, "label": "Fair", "detail": "..."},\n'
-        '    {"category": "Runtime Environment", "score": 4, "label": "Good", "detail": "..."},\n'
+        '    {"category": "Emulation Layer", "score": 4, "label": "Good", "detail": "..."},\n'
+        '    {"category": "System & Hardware", "score": 4, "label": "Good", "detail": "..."},\n'
         '    {"category": "Known Issues & Fixes", "score": 2, "label": "Poor", "detail": "..."},\n'
         '    {"category": "Performance Architecture", "score": 3, "label": "Fair", "detail": "..."}\n'
         "  ],\n"
@@ -2003,13 +2557,21 @@ def _build_dir_system_prompt(
         "performance tradeoffs, texture streaming health, shadow quality, "
         "post-processing overhead, frame rate management. Cite specific settings, "
         "values, and file paths.\n"
-        "2. Runtime Environment: Proton/Wine version suitability, DXVK setup, "
-        "DLL configuration, shader cache state, compatibility layer health. "
-        "If no prefix data available, assess from engine's known Proton compat.\n"
-        "3. Known Issues & Fixes: Community fixes applied/missing, outstanding "
+        "2. Emulation Layer: Wine/Proton version suitability, DXVK/VKD3D-Proton "
+        "configuration (dxvk.conf settings, async compilation, frame latency), "
+        "D3D-to-Vulkan translation overhead, DLL overrides, Wine registry "
+        "settings (Direct3D section, AppDefaults), shader cache state, "
+        "winetricks verbs, esync/fsync status. Analyze DXVK logs for errors, "
+        "driver issues, or feature level problems. This is the translation "
+        "layer between the game and the hardware.\n"
+        "3. System & Hardware: GPU identification, Vulkan driver version and "
+        "capabilities, kernel version, esync/fsync support, gaming tools "
+        "(gamemode, mangohud, gamescope). Cross-reference GPU vendor with "
+        "engine requirements (e.g. NVIDIA GameWorks on AMD hardware).\n"
+        "4. Known Issues & Fixes: Community fixes applied/missing, outstanding "
         "issues with documented solutions. Reference fixes by name and impact. "
         "Incorporate ProtonDB data if available.\n"
-        "4. Performance Architecture: Engine-level or game-level architectural "
+        "5. Performance Architecture: Engine-level or game-level architectural "
         "bottlenecks beyond settings. Streaming architecture, GPU/CPU budget, "
         "port quality issues, fundamental design decisions. Use engine expertise "
         "to identify issues a settings change alone cannot fix.\n\n"
@@ -2038,8 +2600,15 @@ def _build_multi_source_user_prompt(
     community: Dict[str, Any],
     prefix_info: Dict[str, Any],
     fixes: Dict[str, Any],
+    system_info: Optional[Dict[str, Any]] = None,
+    dxvk_config: Optional[Dict[str, Any]] = None,
+    dxvk_logs: Optional[Dict[str, Any]] = None,
+    source_block: str = "",
 ) -> str:
     """Build the user prompt with all collected data organized by source."""
+    system_info = system_info or {}
+    dxvk_config = dxvk_config or {}
+    dxvk_logs = dxvk_logs or {}
     sections: List[str] = [
         f"GAME: {game_name}\n",
     ]
@@ -2131,16 +2700,35 @@ def _build_multi_source_user_prompt(
             sections.append(f"DXVK/Wine env: {json.dumps(dxvk_env)}")
 
         wc = prefix_info.get("wine_config", {})
-        if "dxgi" in wc:
-            d = wc["dxgi"]
-            sections.append(
-                f"dxgi.dll: {'DXVK' if d['is_dxvk'] else 'Wine'} ({d['size_mb']} MB)"
-            )
-        if "d3d11" in wc:
-            d = wc["d3d11"]
-            sections.append(
-                f"d3d11.dll: {'DXVK' if d['is_dxvk'] else 'Wine'} ({d['size_mb']} MB)"
-            )
+        for dll_name in ("dxgi", "d3d11", "d3d9", "d3d12"):
+            if dll_name in wc:
+                d = wc[dll_name]
+                label = d.get("label", "DXVK" if d["is_dxvk"] else "Wine")
+                sections.append(f"{dll_name}.dll: {label} ({d['size_mb']} MB)")
+
+        # Wine\Direct3D settings
+        wine_d3d = prefix_info.get("wine_d3d", {})
+        if wine_d3d:
+            sections.append(f"Wine\\Direct3D settings: {json.dumps(wine_d3d)}")
+
+        # Per-app overrides
+        app_defaults = prefix_info.get("app_defaults", {})
+        if app_defaults:
+            for app, settings in app_defaults.items():
+                sections.append(f"AppDefaults\\{app}: {json.dumps(settings)}")
+
+        # winetricks
+        winetricks = prefix_info.get("winetricks", [])
+        if winetricks:
+            sections.append(f"winetricks verbs: {', '.join(winetricks)}")
+
+        # Crash logs found in prefix
+        crash_logs = prefix_info.get("crash_logs", {})
+        if crash_logs:
+            sections.append(f"\n--- CRASH LOGS ({len(crash_logs)} files) ---")
+            for rel_path, content in crash_logs.items():
+                sections.append(f"\n--- {rel_path} ---")
+                sections.append(content)
 
     # -- Source 5: Known fixes --
     if fixes and (
@@ -2169,6 +2757,88 @@ def _build_multi_source_user_prompt(
             st = chk.get("status", "info").upper()
             sections.append(f"[CHECK - {st}] {chk['name']}: {chk.get('note', '')}")
 
+    # -- Source 6: System info --
+    if system_info.get("gpu") or system_info.get("vulkan", {}).get("available"):
+        sections.append("\n" + "=" * 60)
+        sections.append("SOURCE 6: SYSTEM & HARDWARE")
+        sections.append("=" * 60)
+
+        kernel = system_info.get("kernel", "")
+        if kernel:
+            sections.append(f"Kernel: {kernel}")
+
+        for gpu in system_info.get("gpu", []):
+            parts = [f"Vendor: {gpu.get('vendor', '?')}"]
+            if gpu.get("pci_id"):
+                parts.append(f"PCI: {gpu['pci_id']}")
+            if gpu.get("driver"):
+                parts.append(f"Driver: {gpu['driver']}")
+            if gpu.get("vram_mb"):
+                parts.append(f"VRAM: {gpu['vram_mb']}MB")
+            sections.append(f"GPU: {', '.join(parts)}")
+
+        vk = system_info.get("vulkan", {})
+        if vk.get("available"):
+            sections.append(f"Vulkan device: {vk.get('device_name', 'N/A')}")
+            sections.append(f"Vulkan API: {vk.get('api_version', 'N/A')}")
+            sections.append(
+                f"Vulkan driver: {vk.get('driver_name', '')} "
+                f"{vk.get('driver_info', '')}"
+            )
+        elif vk.get("error"):
+            sections.append(f"Vulkan: UNAVAILABLE ({vk['error']})")
+
+        ef = system_info.get("esync_fsync", {})
+        if ef:
+            sections.append(
+                f"esync: {'capable' if ef.get('esync_capable') else 'NOT capable'} "
+                f"(file-max={ef.get('file_max', '?')})"
+            )
+            sections.append(
+                f"fsync: {'capable' if ef.get('fsync_capable') else 'NOT capable'} "
+                f"(kernel {ef.get('kernel_version', '?')})"
+            )
+
+        tools = system_info.get("gaming_tools", {})
+        if tools:
+            sections.append(f"Gaming tools installed: {', '.join(tools.keys())}")
+        else:
+            sections.append(
+                "Gaming tools: none detected (gamemoderun, mangohud, gamescope)"
+            )
+
+    # -- Source 7: DXVK/VKD3D config and logs --
+    if dxvk_config.get("found") or dxvk_logs.get("found"):
+        sections.append("\n" + "=" * 60)
+        sections.append("SOURCE 7: DXVK / VKD3D-PROTON")
+        sections.append("=" * 60)
+
+        if dxvk_config.get("found"):
+            settings = dxvk_config.get("settings", {})
+            sections.append(f"dxvk.conf ({len(settings)} settings):")
+            for k, v in settings.items():
+                sections.append(f"  {k} = {v}")
+            for path, content in dxvk_config.get("files", {}).items():
+                sections.append(f"  File: {path}")
+
+        if dxvk_logs.get("found"):
+            # Include log summaries first
+            for log_path, summary in dxvk_logs.get("summary", {}).items():
+                sections.append(f"\nDXVK log summary ({Path(log_path).name}):")
+                for k, v in summary.items():
+                    sections.append(f"  {k}: {v}")
+            # Include truncated log content
+            for log_path, content in dxvk_logs.get("files", {}).items():
+                sections.append(f"\n--- DXVK LOG: {Path(log_path).name} ---")
+                sections.append(content)
+
+    # -- Source 8: Source code analysis --
+    if source_block:
+        sections.append("\n" + "=" * 60)
+        sections.append("SOURCE 8: GAME SOURCE CODE ANALYSIS")
+        sections.append("=" * 60)
+        sections.append(source_block)
+
     return "\n".join(sections)
 
 
@@ -2179,13 +2849,15 @@ def generate_report_from_dir(
 ) -> GameReport:
     """Generate a multi-source performance report from a game install.
 
-    Collects data from up to 6 sources:
+    Collects data from up to 8 sources:
       1. Engine config files (ini, logs, benchmarks)
       2. Engine detection (UE3/UE4/Unity from directory structure)
       3. Community data (ProtonDB API)
-      4. Wine/DXVK prefix scan (Proton version, caches, overrides)
+      4. Wine/DXVK prefix scan (registry, DLLs, winetricks, crash logs)
       5. Known fix detection (game-specific community fixes)
-      6. LLM analysis (fed all sources above)
+      6. System info (GPU, driver, Vulkan, kernel, esync/fsync)
+      7. DXVK/VKD3D config and logs
+      8. LLM analysis (fed all sources above)
 
     Args:
         game_dir: Path to the game's install directory.
@@ -2258,7 +2930,33 @@ def generate_report_from_dir(
         log_fn=log_fn,
     )
 
-    # ---- Source 6: LLM analysis ----
+    # ---- Source 6: System info ----
+    _log("\n  Collecting system info...\n")
+    system_info = collect_system_info(log_fn=log_fn)
+
+    # ---- Source 7: DXVK/VKD3D config and logs ----
+    _log("\n  Scanning DXVK config...\n")
+    dxvk_config = scan_dxvk_config(game_dir, prefix_dir, log_fn=log_fn)
+    _log("\n  Scanning DXVK logs...\n")
+    dxvk_logs = scan_dxvk_logs(game_dir, prefix_dir, log_fn=log_fn)
+
+    # ---- Source 8: Source code analysis ----
+    _log("\n  Analyzing source code...\n")
+    source_analysis = None
+    source_block = ""
+    try:
+        from pipeline.source_analyzer import analyze_game_source
+        source_analysis = analyze_game_source(
+            game_dir=game_dir,
+            engine_hint=engine_info.get("engine", ""),
+            log_fn=log_fn,
+        )
+        if source_analysis.total_classes > 0:
+            source_block = source_analysis.to_prompt_block()
+    except Exception as exc:
+        _log(f"  Source analysis error: {exc}\n")
+
+    # ---- Source 9: LLM analysis ----
     has_any_data = bool(
         config_files
         or engine_info.get("engine") != "unknown"
@@ -2266,6 +2964,10 @@ def generate_report_from_dir(
         or prefix_info
         or fixes.get("installed")
         or fixes.get("missing")
+        or system_info.get("gpu")
+        or dxvk_config.get("found")
+        or dxvk_logs.get("found")
+        or (source_analysis and source_analysis.total_classes > 0)
     )
     if not has_any_data:
         report.summary = "No data collected for analysis."
@@ -2277,6 +2979,8 @@ def generate_report_from_dir(
         community,
         prefix_info,
         fixes,
+        system_info,
+        dxvk_config,
     )
     user_prompt = _build_multi_source_user_prompt(
         report.game,
@@ -2285,6 +2989,10 @@ def generate_report_from_dir(
         community,
         prefix_info,
         fixes,
+        system_info,
+        dxvk_config,
+        dxvk_logs,
+        source_block=source_block,
     )
 
     _log("  Sending to LLM for analysis...\n")

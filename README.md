@@ -76,8 +76,7 @@ python bot_logic/bot_scripts/cuphead_bot.py --launch  # Run unified bot
 
 ```
 paper_engine/
-  gui.py                          # Entry point (CustomTkinter GUI)
-  gui_app.py                      # Main app frame, sidebar, page routing
+  gui_app.py                      # Entry point (CustomTkinter GUI), sidebar, page routing
   gui_pages/
     home.py                       # Home page -- quick-action cards, status
     dashboard.py                  # Metrics/KPI dashboard
@@ -93,9 +92,17 @@ paper_engine/
     game_feedback.py              # Multi-source game analysis engine
     gameplay_recorder.py          # Screenshot + memory state capture
     batch_annotator.py            # LLM annotation of recorded sessions
+    describe_annotator.py         # Human + LLM side-by-side annotation
     training_model.py             # YOLO training
     generate_bot_script.py        # LLM bot script generation
     self_learning.py              # Play-annotate-train orchestrator
+    dataset_tools.py              # Dataset cleanup, merge, augmentation utilities
+    example_bank.py               # Few-shot visual references for LLM annotation
+    golden_rules.py               # Persistent annotation rules from human review
+    review_feedback.py            # Per-image review session persistence
+    review_results.py             # Annotation tool + review GUI
+    scene_context.py              # Scene visual descriptions for annotation grounding
+    source_analyzer.py            # Static analysis of decompiled game code
 
   tools/
     functions.py                  # Path helpers, API key (keyring + .env)
@@ -118,8 +125,10 @@ paper_engine/
   conf/
     main_conf.ini                 # LLM provider, capture settings
     training_conf.ini             # YOLO training params
+    golden_rules.json             # Persistent annotation rules data
     game_configs/
       cuphead.py                  # Cuphead pointer chains + field defs
+      cuphead_scenes.json         # Scene context descriptions for annotation
 
   yolo_dataset/                   # YOLO training data (12 classes)
   recordings/sessions/            # Recorded gameplay sessions

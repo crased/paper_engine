@@ -180,6 +180,7 @@ class ToolsPage(ctk.CTkFrame):
 
         _btns = [
             ("Annotate", CLR_ORANGE, self._on_annotate),
+            ("Describe & Review", ("#6A1B9A", "#AB47BC"), self._on_describe_review),
             ("Train Model", CLR_BLUE, self._on_train_model),
             ("Import Model", CLR_PURPLE, self._on_import_model),
             ("Verify / Retrain", CLR_GREEN, self._on_verify_retrain),
@@ -332,7 +333,7 @@ class ToolsPage(ctk.CTkFrame):
         # -- Raw log textbox (hidden by default) --
         self._log_textbox = ctk.CTkTextbox(
             self._pipeline_frame,
-            wrap="word",
+            wrap="none",
             state="disabled",
             corner_radius=RADIUS_MD,
             font=font_mono_small(),
@@ -513,14 +514,27 @@ class ToolsPage(ctk.CTkFrame):
     def step_log(self):
         return self._step_log
 
+    _log_busy = False  # re-entrancy guard for log()
+
     def log(self, text: str):
-        """Append to raw log textbox (thread-safe)."""
+        """Append to raw log textbox (thread-safe).
+
+        Uses a re-entrancy guard so that any stdout/stderr produced by
+        the textbox update itself (e.g. CustomTkinter warnings) is
+        silently dropped instead of recursing back into this method.
+        """
 
         def _do():
-            self._log_textbox.configure(state="normal")
-            self._log_textbox.insert("end", text)
-            self._log_textbox.see("end")
-            self._log_textbox.configure(state="disabled")
+            if self._log_busy:
+                return
+            self._log_busy = True
+            try:
+                self._log_textbox.configure(state="normal")
+                self._log_textbox.insert("end", text)
+                self._log_textbox.see("end")
+                self._log_textbox.configure(state="disabled")
+            finally:
+                self._log_busy = False
 
         if threading.current_thread() is threading.main_thread():
             _do()
@@ -528,8 +542,16 @@ class ToolsPage(ctk.CTkFrame):
             self.after(0, _do)
 
     def set_status(self, text: str):
-        """Update app-level status."""
-        self._app.set_status(text)
+        """Update app-level status (terminal implementation).
+
+        gui_app.set_status() delegates here, so this method must NOT
+        call self._app.set_status() — that would create mutual recursion.
+        """
+        try:
+            suffix = f" — {text}" if text and text != "Idle" else ""
+            self.winfo_toplevel().title(f"Paper Engine{suffix}")
+        except Exception:
+            pass
 
     @property
     def train_mode(self):
@@ -568,6 +590,7 @@ class ToolsPage(ctk.CTkFrame):
         """Trigger a pipeline action by name (used by Home page cards)."""
         actions = {
             "annotate": self._on_annotate,
+            "describe_review": self._on_describe_review,
             "train": self._on_train_model,
             "import": self._on_import_model,
             "verify": self._on_verify_retrain,
@@ -649,13 +672,19 @@ class ToolsPage(ctk.CTkFrame):
     def _run_in_thread(self, fn, *args):
         def _worker():
             old_out, old_err = sys.stdout, sys.stderr
-            redir = _LogRedirector(self.log)
-            sys.stdout = redir
-            sys.stderr = redir
+            redir_out = _LogRedirector(self.log, old_out)
+            redir_err = _LogRedirector(self.log, old_err)
+            sys.stdout = redir_out
+            sys.stderr = redir_err
             try:
                 fn(*args)
             except Exception as exc:
-                self.log(f"\nERROR: {exc}\n")
+                import traceback as _tb
+
+                sys.stdout, sys.stderr = old_out, old_err
+                tb_text = _tb.format_exc()
+                sys.stdout, sys.stderr = redir_out, redir_err
+                self.log(f"\nERROR: {exc}\n{tb_text}\n")
             finally:
                 sys.stdout, sys.stderr = old_out, old_err
 
@@ -843,6 +872,101 @@ class ToolsPage(ctk.CTkFrame):
         )
         self._app.set_status("Annotating...")
         AnnotationWindow(self.winfo_toplevel(), screenshots_dir=source["path"])
+
+    # -- Describe & Review --
+
+    def _on_describe_review(self):
+        """Open AnnotationWindow in Describe & Review mode.
+
+        Reuses annotation source picker, then opens the annotation tool
+        with the review queue pre-activated. User reviews N images by
+        writing descriptions, generating boxes via LLM, and correcting.
+        """
+        sources = self._gather_annotation_sources()
+        if not sources:
+            self.log("\nERROR: No image sources found.\n")
+            self.log("Capture screenshots or record sessions first.\n")
+            return
+        if len(sources) == 1:
+            self._open_describe_review_for_source(sources[0])
+            return
+
+        # Show source picker, then open in review mode
+        self._show_describe_review_source_dialog(sources)
+
+    def _show_describe_review_source_dialog(self, sources):
+        """Source picker that opens in Describe & Review mode."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Describe & Review — Select Source")
+        dialog.geometry("520x500")
+        dialog.resizable(False, True)
+        dialog.transient(self.winfo_toplevel())
+
+        ctk.CTkLabel(
+            dialog,
+            text="Choose an image source to review",
+            font=font_subheading(),
+            text_color=TEXT_PRIMARY,
+        ).pack(padx=SP_XL, pady=(SP_XL, SP_MD))
+
+        scroll = ctk.CTkScrollableFrame(dialog, width=460, height=220)
+        scroll.pack(padx=SP_XL, pady=(0, SP_MD), fill="both", expand=True)
+
+        selected = tk.IntVar(value=0)
+        for idx, src in enumerate(sources):
+            ctk.CTkRadioButton(
+                scroll,
+                text=src["label"],
+                variable=selected,
+                value=idx,
+                font=font_body(),
+            ).pack(anchor="w", padx=SP_MD, pady=SP_XS)
+
+        # Count picker
+        count_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        count_frame.pack(padx=SP_XL, pady=(0, SP_MD))
+        ctk.CTkLabel(
+            count_frame, text="Images to review:", font=font_body(),
+        ).pack(side="left", padx=(0, SP_SM))
+        count_var = tk.StringVar(value="100")
+        ctk.CTkEntry(
+            count_frame, textvariable=count_var, width=80, font=font_body(),
+        ).pack(side="left")
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(padx=SP_XL, pady=(0, SP_XL))
+
+        def _open():
+            try:
+                count = int(count_var.get())
+            except ValueError:
+                count = 100
+            dialog.destroy()
+            self._open_describe_review_for_source(sources[selected.get()], count)
+
+        ctk.CTkButton(
+            btn_frame, text="Start Review", width=130, height=BTN_HEIGHT_MD,
+            corner_radius=RADIUS_MD, fg_color=("#6A1B9A", "#AB47BC"), command=_open,
+        ).pack(side="left", padx=SP_SM)
+        ctk.CTkButton(
+            btn_frame, text="Cancel", width=90, height=BTN_HEIGHT_MD,
+            corner_radius=RADIUS_MD, fg_color="gray", command=dialog.destroy,
+        ).pack(side="left", padx=SP_SM)
+
+        dialog.after(100, lambda: dialog.grab_set())
+
+    def _open_describe_review_for_source(self, source, count: int = 100):
+        """Open AnnotationWindow and immediately start review queue."""
+        from pipeline.review_results import AnnotationWindow
+
+        self.log(
+            f"\n--- Describe & Review ({source['kind']}: {Path(source['path']).name}, "
+            f"{count} images) ---\n"
+        )
+        self._app.set_status("Describe & Review...")
+        window = AnnotationWindow(self.winfo_toplevel(), screenshots_dir=source["path"])
+        # Activate review queue after window is ready
+        window.after(500, lambda: window._start_review_queue(count=count))
 
     # -- Train Model --
 
@@ -2107,12 +2231,30 @@ def _parse_names(raw):
 
 
 class _LogRedirector:
-    def __init__(self, cb):
+    """Redirect stdout/stderr to a callback, but only from the owning thread.
+
+    ``sys.stdout`` is a process-global, so redirecting it in a worker thread
+    also affects the main (GUI) thread.  If the main thread's textbox update
+    produces any stdout/stderr output (e.g. CustomTkinter warnings), it feeds
+    back through the redirector → ``log()`` → synchronous ``_do()`` → textbox
+    insert → more stdout → infinite recursion.
+
+    Fix: only route writes that originate from the thread that created this
+    redirector.  All other threads write to the original stream.
+    """
+
+    def __init__(self, cb, original_stdout):
         self._cb = cb
+        self._original = original_stdout
+        self._owner = threading.current_thread().ident
 
     def write(self, text):
         if text:
-            self._cb(text)
+            if threading.current_thread().ident == self._owner:
+                self._cb(text)
+            else:
+                self._original.write(text)
 
     def flush(self):
-        pass
+        if hasattr(self._original, "flush"):
+            self._original.flush()

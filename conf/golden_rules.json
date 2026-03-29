@@ -1,0 +1,148 @@
+{
+  "class": {
+    "player": [
+      {
+        "text": "Cup-headed character with blue body and white head. In gameplay, occupies roughly 5-8% of frame width. Can appear smaller on world map or zoomed scenes. Up to 2 players possible (co-op: Cuphead + Mugman).",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634662",
+        "confidence": 1.0
+      },
+      {
+        "text": "Player sprite changes with state: standing, ducking (shorter/wider), dashing (stretched horizontal), jumping (airborne), dead (collapsed). Box must match the current sprite shape, not a fixed size.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.204998",
+        "confidence": 1.0
+      }
+    ],
+    "enemy": [
+      {
+        "text": "Any hostile or interactive non-player character. Includes: bosses (large, often 25-50% of frame), minions (small, similar size to player), and world map NPCs. Size varies enormously \u2014 box must match the actual sprite regardless of size.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634671",
+        "confidence": 1.0
+      },
+      {
+        "text": "Run-and-gun levels have 5 enemy movement patterns: stationary ground, path-following, shooting (fires projectiles), big (larger hitbox), and spawner (creates other enemies). Visual size and shape varies by pattern.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205011",
+        "confidence": 1.0
+      },
+      {
+        "text": "16 unique enemy types plus bosses. Boss enemies can have multiple phases where they transform into completely different visual forms mid-fight. Annotate the current visible form, not what it was before.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205013",
+        "confidence": 1.0
+      }
+    ],
+    "projectile": [
+      {
+        "text": "Any object fired, thrown, or hazardous. Always smaller than the entity that produced it. Includes bullets, fireballs, energy beams, falling objects. If it moves and can damage the player, it's a projectile.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634673",
+        "confidence": 1.0
+      },
+      {
+        "text": "96 unique projectile types across 36 levels. Each level has completely different projectile visuals (bullets, fireballs, tears, gems, hearts, gumballs, pitchforks, arrows, etc). The model must generalize across all of them.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205007",
+        "confidence": 1.0
+      },
+      {
+        "text": "Boss levels average 3-5 distinct projectile types per fight. Devil has 9 types. Run-and-gun levels have 1-3 types. Expect multiple different projectiles in the same frame.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205009",
+        "confidence": 1.0
+      }
+    ],
+    "platform": [
+      {
+        "text": "Solid surface the player can stand on. Typically wider than tall. Only appears in platforming/run-and-gun levels, never in boss arenas or menus. Box should cover the entire walkable surface.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634675",
+        "confidence": 1.0
+      },
+      {
+        "text": "Platforms only exist in run-and-gun and platforming levels (8 levels). Boss arenas are flat ground \u2014 do not annotate the floor as a platform. Flying levels have no platforms at all.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205014",
+        "confidence": 1.0
+      }
+    ]
+  },
+  "scene": {
+    "boss_fight": [
+      {
+        "text": "One large enemy dominates the frame. Multiple projectiles likely. Player is usually present. No platforms unless it's a platforming boss.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634676",
+        "confidence": 1.0
+      }
+    ],
+    "run_and_gun": [
+      {
+        "text": "Side-scrolling level with multiple small enemies, projectiles, and platforms. Player moves left to right. More objects per frame than boss fights.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634678",
+        "confidence": 1.0
+      }
+    ],
+    "world_map": [
+      {
+        "text": "Isometric overworld. Player is small. Other characters are NPCs (annotate as enemy). Mission nodes are stone pedestals. No projectiles or platforms.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634679",
+        "confidence": 1.0
+      }
+    ],
+    "flying_level": [
+      {
+        "text": "Airplane/flying levels (Airplane, AirshipClam, AirshipCrab, etc). Player is in a plane, not on foot. No platforms. Enemies and projectiles approach from the right. Player sprite is the plane, not Cuphead.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205016",
+        "confidence": 1.0
+      }
+    ],
+    "dice_palace": [
+      {
+        "text": "Dice Palace has 12 sub-levels, each a mini-boss. Small arenas, unique enemy per room. Fewer projectiles than main bosses.",
+        "source": "source_analysis",
+        "created": "2026-03-25T17:58:24.205017",
+        "confidence": 1.0
+      }
+    ]
+  },
+  "quality": {
+    "tightness": [
+      {
+        "text": "Boxes must tightly enclose the visible sprite with zero padding. Every edge of the box should touch the edge of the object.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634680",
+        "confidence": 1.0
+      }
+    ],
+    "proportions": [
+      {
+        "text": "Use relative sizing: projectiles should be smaller than the player. If a 'projectile' box is larger than the player box in the same frame, it is likely mislabeled or the box is too loose.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634681",
+        "confidence": 1.0
+      }
+    ],
+    "completeness": [
+      {
+        "text": "Annotate ALL visible instances of every class. Do not skip small or partially occluded objects. Partial visibility still gets a box covering the visible portion.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634683",
+        "confidence": 1.0
+      }
+    ],
+    "one_box_per_object": [
+      {
+        "text": "Each distinct object gets exactly one box. Do not split a single enemy into multiple boxes. Do not merge two adjacent enemies into one box.",
+        "source": "compliance_review",
+        "created": "2026-03-25T15:50:11.634684",
+        "confidence": 1.0
+      }
+    ]
+  }
+}
