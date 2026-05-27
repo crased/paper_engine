@@ -31,7 +31,7 @@ secrets.json
 # YOLO/ML outputs
 /yolo_dataset
 runs/
-bot_logic/models/
+backend/bot_logic/models/
 *.pt
 *.onnx
 *.torchscript
@@ -42,7 +42,7 @@ weights/
 archive/
 
 # Generated config (LLM-produced controls)
-conf/cuphead_controls.ini
+backend/conf/cuphead_controls.ini
 
 # Generated bot scripts (from generate_bot_script.py)
 bot_scripts/

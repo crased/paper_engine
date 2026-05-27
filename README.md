@@ -12,7 +12,7 @@ Paper Engine has two main systems:
 1. **Game Execution** -- Runs game executables (Windows via Wine, Linux native, scripts)
 2. **Memory Reading** -- Reads live game state from Mono/Unity games (HP, scene, loading, etc.)
 3. **Screenshot Capture** -- Captures gameplay at configurable intervals
-4. **Annotation** -- Built-in annotation tool for object detection labelling
+4. **LLM Annotation** -- `batch_annotator` sends recorded frames to an LLM for YOLO labelling
 5. **YOLO Training** -- Trains YOLO11/YOLO26 models on annotated gameplay data
 6. **Bot Generation** -- LLM generates Python bot scripts using YOLO + game controls
 7. **Self-Learning** -- Automated play-annotate-train loop
@@ -29,28 +29,45 @@ Analyzes any game's performance by collecting data from up to 6 sources:
 
 The LLM produces a structured report with 1-5 star ratings across Engine Configuration, Runtime Environment, Known Issues & Fixes, and Performance Architecture -- with file-referenced issues and actionable fix suggestions.
 
-## GUI
+## Web Interface (Vue + FastAPI)
 
-Primary entry point is the CustomTkinter desktop GUI:
+The interface is a Vue 3 + TypeScript frontend (`web/`) backed by a FastAPI seam
+(`api/`) that wraps the Python engine. The previous CustomTkinter desktop GUI is
+archived outside the repo at `../paper_engine_legacy_gui/`.
 
 ```bash
-python gui_app.py
+# Backend -- run from backend/ (code lives there; data dirs stay at repo root)
+source env/bin/activate
+cd backend && uvicorn api.main:app --reload --port 8000
+
+# Frontend (separate terminal)
+cd frontend && npm install && npm run dev   # http://localhost:5173
+
+# ...or start both at once from the repo root:
+./paperengine.sh
 ```
 
-**Pages:**
-- **Home** -- Quick-action cards, system status
-- **Metrics** -- KPI cards, training metrics, dataset stats, model comparison, session history
-- **Test** -- Game launching, session recording, live memory state
-- **Tools** -- Pipeline operations (Annotate, Train, Import, Verify, Generate Bot, Game Report, Dir Report), label management
-- **Settings** -- LLM provider config, memory reader info, paths
+Vite proxies `/api/*` to the backend; the browser only talks to `:5173`. Full
+details (build, SSE job logs, the two-mode design) in [`web/README.md`](web/README.md).
 
-**Dir Report** (Tools page) opens a dialog to select a game directory and optional Wine prefix, runs the full 6-source analysis, and caches the raw data as JSON for later LLM use.
+**Pages:**
+- **Home** -- engine status, model count, quick actions
+- **Metrics** -- dataset class balance, trained-model inventory
+- **Test** -- run inference over a session/directory, inspect detections
+- **Tools** -- launch train/annotate jobs with live (SSE) logs, read reports
+- **Settings** -- stub (backend settings endpoints pending)
+
+### Two execution modes
+- **Local** -- Vue -> FastAPI -> `pipeline/` (full interactive tool)
+- **Docker (headless)** -- no GUI/API; drive the `pipeline/` CLIs over SSH. Long
+  jobs run the *same* CLIs the API spawns, so behavior is identical.
 
 ## CLI
 
 ### Game Performance Report
 
 ```bash
+# Run from backend/ (cd backend); session/data paths are relative to the repo root.
 # Multi-source directory analysis (any game)
 python -m pipeline.game_feedback --game-dir /path/to/game/
 python -m pipeline.game_feedback --game-dir /path/to/game/ --prefix /path/to/wine/prefix/
@@ -64,7 +81,8 @@ python -m pipeline.game_feedback --session recordings/sessions/Cuphead_20260305_
 ### Bot Pipeline
 
 ```bash
-python gui_app.py                                      # Main GUI
+# All commands below run from backend/ (cd backend first):
+uvicorn api.main:app --reload --port 8000           # Backend API (then: cd frontend && npm run dev)
 python -m pipeline.gameplay_recorder --launch       # Record gameplay session
 python -m pipeline.batch_annotator --session path/  # LLM-annotate session frames
 python -m pipeline.training_model                   # Train YOLO model
@@ -76,64 +94,56 @@ python bot_logic/bot_scripts/cuphead_bot.py --launch  # Run unified bot
 
 ```
 paper_engine/
-  gui_app.py                      # Entry point (CustomTkinter GUI), sidebar, page routing
-  gui_pages/
-    home.py                       # Home page -- quick-action cards, status
-    dashboard.py                  # Metrics/KPI dashboard
-    session.py                    # Test/session page
-    tools.py                      # Pipeline tools + Dir Report + label mgmt
-    settings.py                   # Settings page
-  gui_components/
-    theme.py                      # Design tokens (colors, spacing, typography)
-    step_log.py                   # Step log widget
-    dialogs.py                    # Modal dialog helpers
+  backend/                        # all Python -- RUN THE BACKEND FROM HERE
+    api/                          # FastAPI seam to the engine
+      main.py                     # App, CORS, router mounts, /api/health
+      schemas.py                  # Pydantic models (the frontend's TS contract)
+      services.py                 # In-process reads + YOLO inference
+      jobs.py                     # Async subprocess job runner + SSE streaming
+      routes/                     # models, infer, dataset, reports, sessions, jobs
+    pipeline/
+      game_feedback.py            # Multi-source game analysis engine
+      gameplay_recorder.py        # Screenshot + memory state capture
+      batch_annotator.py          # LLM annotation of recorded sessions
+      training_model.py           # YOLO training
+      generate_bot_script.py      # LLM bot script generation
+      self_learning.py            # Play-annotate-train orchestrator
+      dataset_tools.py            # Dataset cleanup, merge, augmentation
+      example_bank.py             # Few-shot visual references for annotation
+      golden_rules.py             # Persistent annotation rules
+      scene_context.py            # Scene descriptions for annotation grounding
+      source_analyzer.py          # Static analysis of decompiled game code
+    tools/
+      functions.py                # Path helpers, API key (keyring + .env)
+      memory_reader.py            # Linux process_vm_readv wrapper
+      mono_external.py            # External Mono metadata walker
+      game_state.py               # Config-driven game state reader
+      mono_bridge.c / .so         # LD_PRELOAD bridge for Mono base detection
+      screencapture.py            # Screenshot capture (flameshot/mss/PIL)
+    bot_logic/
+      bot_scripts/cuphead_bot.py  # Three-domain bot (Read-Fuse-Dispatch-Act)
+      bot_scripts/domains/        # contracts, detection, navigation, strategy
+      models/                     # Trained YOLO models (gitignored)
+    conf/
+      main_conf.ini               # LLM provider, capture settings
+      training_conf.ini           # YOLO training params
+      golden_rules.json           # Persistent annotation rules data
+      game_configs/               # Cuphead pointer chains, scene descriptions
 
-  pipeline/
-    game_feedback.py              # Multi-source game analysis engine
-    gameplay_recorder.py          # Screenshot + memory state capture
-    batch_annotator.py            # LLM annotation of recorded sessions
-    describe_annotator.py         # Human + LLM side-by-side annotation
-    training_model.py             # YOLO training
-    generate_bot_script.py        # LLM bot script generation
-    self_learning.py              # Play-annotate-train orchestrator
-    dataset_tools.py              # Dataset cleanup, merge, augmentation utilities
-    example_bank.py               # Few-shot visual references for LLM annotation
-    golden_rules.py               # Persistent annotation rules from human review
-    review_feedback.py            # Per-image review session persistence
-    review_results.py             # Annotation tool + review GUI
-    scene_context.py              # Scene visual descriptions for annotation grounding
-    source_analyzer.py            # Static analysis of decompiled game code
+  frontend/                       # Vue 3 + TS + Vite  (was web/)
+    src/
+      api/client.ts               # Typed fetch client
+      router/, stores/            # vue-router + pinia
+      pages/                      # Home, Metrics, Test, Tools, Settings
+      components/                 # AppSidebar, etc.
+    README.md                     # Web stack run/build guide
 
-  tools/
-    functions.py                  # Path helpers, API key (keyring + .env)
-    memory_reader.py              # Linux process_vm_readv wrapper
-    mono_external.py              # External Mono metadata walker
-    game_state.py                 # Config-driven game state reader
-    mono_bridge.c / .so           # LD_PRELOAD bridge for Mono base detection
-    screencapture.py              # Screenshot capture (flameshot/mss/PIL)
-
-  bot_logic/
-    bot_scripts/
-      cuphead_bot.py              # Three-domain bot (Read-Fuse-Dispatch-Act)
-      domains/
-        contracts.py              # Shared data contracts (GamePhase, WorldState)
-        detection.py              # YOLO background thread
-        navigation.py             # Menu/map navigation
-        strategy.py               # Combat (survive>evade>engage>advance)
-    models/                       # Trained YOLO models
-
-  conf/
-    main_conf.ini                 # LLM provider, capture settings
-    training_conf.ini             # YOLO training params
-    golden_rules.json             # Persistent annotation rules data
-    game_configs/
-      cuphead.py                  # Cuphead pointer chains + field defs
-      cuphead_scenes.json         # Scene context descriptions for annotation
-
-  yolo_dataset/                   # YOLO training data (12 classes)
+  # Data dirs stay at the repo root; the backend resolves them via DATA_ROOT:
+  yolo_dataset/                   # YOLO training data
   recordings/sessions/            # Recorded gameplay sessions
-  reports/                        # Generated analysis reports
-    cache/                        # Cached report JSON for LLM reuse
+  reports/                        # Generated analysis reports (+ cache/)
+  runs/  screenshots/  game/      # ML outputs, captures, game files
+  env/                            # Python venv
 ```
 
 ## Architecture
@@ -183,14 +193,19 @@ game_feedback.py
 
 - **OS**: Linux (tested on Arch/Wayland). macOS partially supported. Windows not supported.
 - **Python**: 3.8+
+- **Node**: 20+ (for the Vue frontend)
 - **Wine**: For running Windows games
 - **LLM provider**: Anthropic Claude (default), Google Gemini, or OpenAI
 
-### Python Dependencies
+### Dependencies
 
 ```bash
-pip install pynput python-dotenv pyyaml customtkinter anthropic
-pip install ultralytics  # For YOLO training
+# Python (backend + engine)
+pip install pynput python-dotenv pyyaml anthropic fastapi "uvicorn[standard]"
+pip install ultralytics  # For YOLO training/inference
+
+# Frontend
+cd web && npm install
 ```
 
 ## Security
@@ -232,7 +247,7 @@ Apache License 2.0 -- see [LICENSE](LICENSE).
 ## Acknowledgments
 
 - [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for object detection
-- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) for the desktop GUI
+- [Vue](https://vuejs.org/), [Vite](https://vite.dev/), and [FastAPI](https://fastapi.tiangolo.com/) for the web interface
 - [Flameshot](https://flameshot.org/) for screenshot capture
 - [ProtonDB](https://www.protondb.com/) for community compatibility data
 - [PCGamingWiki](https://www.pcgamingwiki.com/) for game-specific fix knowledge
